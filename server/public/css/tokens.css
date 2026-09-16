@@ -1,0 +1,100 @@
+@font-face {
+  font-family: 'AlHurra';
+  src: url('../fonts/AlHurra Font Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+  نظام التصميم — {{PRODUCT_AR}} — مطعم {{NAME_AR}}
+  الألوان قابلة للتخصيص من brand.json لكل عميل
+*/
+:root {
+  --dark-950: #0f0d0b;
+  --dark-900: #1a1612;
+  --dark-800: #252019;
+  --dark-line: rgba(212, 167, 106, 0.12);
+
+  --brown-gold: #b8860b;
+  --brown-warm: #8B6914;
+  --brown-dark: #5C3A1E;
+  --brown-light: #D4A76A;
+  --glow: rgba(184, 134, 11, 0.35);
+
+  --paper-000: #f5efe6;
+  --gray-400: #b8a89a;
+
+  --clay-900: var(--dark-950);
+  --clay-800: var(--dark-900);
+  --adobe-700: var(--brown-gold);
+  --chile-600: var(--brown-warm);
+  --marigold-500: var(--brown-light);
+  --agave-600: var(--brown-dark);
+  --sand-100: var(--dark-800);
+  --sand-050: var(--dark-950);
+  --ink-000: var(--dark-900);
+  --ink-900: var(--dark-950);
+  --line-soft: var(--dark-line);
+  --shadow-warm: 0 10px 30px rgba(0,0,0,0.55);
+
+  /* خط AlHurra من الملف server/font - مطبق على كل النصوص */
+  --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, 'Noto Sans Arabic', Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, 'Noto Sans Arabic', Arial, sans-serif;
+  /* الأرقام بخط إنجليزي عريض: Arial/Segoe UI مع وزن ثقيل */
+  --font-mono: 'Arial', 'Segoe UI', 'Helvetica Neue', sans-serif;
+
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+}
+
+:root {
+  --dark-950: #0a0c10;
+  --dark-900: #111216;
+  --dark-800: #1a1d23;
+  --dark-line: rgba(255,255,255,0.08);
+
+  --fire-orange: {{ACCENT}};
+  --fire-red: {{ACCENT_DEEP}};
+  --sumac: #610000;
+  --glow: {{GLOW}};
+
+  --paper-000: #ffffff;
+  --gray-400: #a3a3a3;
+
+  --clay-900: var(--dark-950);
+  --clay-800: var(--dark-900);
+  --adobe-700: var(--fire-orange);
+  --chile-600: var(--fire-orange);
+  --marigold-500: var(--fire-orange);
+  --agave-600: var(--fire-red);
+  --sand-100: var(--dark-800);
+  --sand-050: var(--dark-950);
+  --ink-000: var(--dark-900);
+  --ink-900: var(--dark-950);
+  --line-soft: var(--dark-line);
+  --shadow-warm: 0 10px 30px rgba(0,0,0,0.55);
+
+  /* خط AlHurra من الملف server/font - مطبق على كل النصوص */
+  --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, 'Noto Sans Arabic', Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, 'Noto Sans Arabic', Arial, sans-serif;
+  /* الأرقام بخط إنجليزي عريض: Arial/Segoe UI مع وزن ثقيل */
+  --font-mono: 'Arial', 'Segoe UI', 'Helvetica Neue', sans-serif;
+
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--dark-950); color: var(--paper-000); font-family: var(--font-body); direction: rtl; }
+body { -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+::selection { background: var(--brown-gold); color: var(--dark-950); }
+:focus-visible { outline: 3px solid var(--brown-gold); outline-offset: 2px; }
+::selection { background: var(--fire-orange); color: var(--dark-950); }
+:focus-visible { outline: 3px solid var(--fire-orange); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}

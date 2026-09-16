@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الدخول | لوحة تحكم {{NAME_AR}}</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin-body">
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-card__logo"><img src="/images/logo.png?v=2" alt="{{NAME_AR}}"></div>
+    <div class="login-card__title">لوحة التحكم</div>
+    <div class="login-card__sub">{{NAME_AR}} &middot; دخول الكاشير والإدارة</div>
+    <div class="form-error" id="loginError"></div>
+    <form id="loginForm">
+      <div class="field"><label for="username">اسم المستخدم</label><input id="username" name="username" type="text" autocomplete="username" required></div>
+      <div class="field"><label for="password">كلمة المرور</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+      <button type="submit" class="btn btn-primary" id="loginBtn">تسجيل الدخول</button>
+    </form>
+  </div>
+</div>
+<script src="/js/admin-login.js"></script>
+</body>
+</html>

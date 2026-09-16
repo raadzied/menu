@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>منيو {{NAME_AR}} | بوابة الطاولات</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; min-height: 100vh; min-height: 100dvh;
+    display: flex; align-items: center; justify-content: center; padding: 20px 18px;
+    background: radial-gradient(120% 90% at 50% 118%, #5C3A1E 0%, #3D2B1F 55%, #0f0d0b 100%);
+    color: #fff; font-family: var(--font-body, system-ui, 'Segoe UI', Tahoma, sans-serif);
+    -webkit-text-size-adjust: 100%; }
+  button, input { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+  .portal-card { text-align: center; width: 100%; max-width: 380px; }
+
+  /* الشعار يملأ الدائرة بالكامل (مقياس مبني على علبة الشعار 87.5%) */
+  .portal-card__ring {
+    width: clamp(92px, 24vw, 124px); height: clamp(92px, 24vw, 124px); margin: 0 auto 16px;
+    border-radius: 50%; border: 3px solid var(--brown-gold, #b8860b); overflow: hidden;
+    display: flex; align-items: center; justify-content: center; background: #17110b;
+    box-shadow: 0 0 22px rgba(200,160,60,0.35), inset 0 0 18px rgba(220,180,80,0.22); }
+  .portal-card__ring img { width: 100%; height: 100%; object-fit: cover; object-position: center; transform: scale(1.12); }
+
+  .portal-card__title { font-family: var(--font-display, inherit); font-weight: 700; font-size: clamp(22px, 6vw, 28px); margin: 0 0 4px; color: #fff; }
+  .portal-card__lead { font-size: clamp(13px, 3.6vw, 15px); color: #e9d9bd; margin: 0 0 22px; line-height: 1.6; }
+
+  .step { display: flex; align-items: center; gap: 12px; width: 100%; text-align: start;
+    border-radius: 16px; padding: 14px 16px; margin: 0 0 12px; }
+  .step__ico { flex: none; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; background: rgba(0,0,0,0.25); }
+  .step__ico svg { width: 18px; height: 18px; }
+  .step__txt { flex: 1; min-width: 0; }
+  .step__k { display: block; font-size: 12px; color: #b9a888; margin-bottom: 2px; }
+  .step__v { display: block; font-size: clamp(14px, 3.8vw, 16px); font-weight: 700; color: #fff; line-height: 1.4; }
+
+  /* الخطوة الأولى: الكاميرا/QR */
+  .scan-btn { background: linear-gradient(90deg, {{ACCENT}}, {{ACCENT_DEEP}}); color: #fff;
+    border: 1px solid rgba(255,255,255,0.22); cursor: pointer; box-shadow: 0 4px 16px {{GLOW}}; }
+  .scan-btn:active { transform: scale(0.98); }
+  .scan-btn--busy { opacity: 0.6; pointer-events: none; }
+  .scan-btn--browser { background: rgba(40,120,220,0.9); border-color: rgba(150,200,255,0.7); box-shadow: none; }
+  a.scan-btn { text-decoration: none; }
+  .scan-btn .step__ico { background: rgba(255,255,255,0.18); }
+
+  .portal-or { display: flex; align-items: center; gap: 10px; color: #9a8f80; font-size: 12px; margin: 4px 0 12px; }
+  .portal-or::before, .portal-or::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.14); }
+
+  /* الخطوة الثانية: الكود */
+  .code-input { display: block; width: 100%; margin: 0 0 12px; background: rgba(0,0,0,0.35);
+    border: 2px solid var(--brown-gold, #b8860b); border-radius: 14px; color: #fff; text-align: center; direction: ltr;
+    font-family: var(--font-mono, monospace); font-weight: 700; font-size: clamp(22px, 6.5vw, 28px); letter-spacing: clamp(4px, 1.5vw, 8px);
+    padding: 14px 8px; outline: none; }
+  .code-input:focus { border-color: {{ACCENT}}; box-shadow: 0 0 14px {{GLOW}}; }
+  .code-input::placeholder { color: rgba(255,255,255,0.22); }
+  .enter-btn { display: block; width: 100%; background: linear-gradient(90deg, {{ACCENT}}, {{ACCENT_DEEP}});
+    color: #fff; border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 14px 22px; font-size: 16px; font-weight: 700;
+    cursor: pointer; box-shadow: 0 3px 14px {{GLOW}}; }
+  .enter-btn:active { transform: scale(0.98); }
+  .enter-btn:disabled { opacity: 0.5; }
+  .enter-btn--ghost { background: rgba(255,255,255,0.08); box-shadow: none; }
+  .portal-err { color: #f0a794; font-size: 13px; min-height: 18px; margin: 8px 0 0; }
+
+  .ret-table { font-family: var(--font-mono, monospace); font-weight: 700; color: var(--brown-gold, #b8860b); font-size: 40px; line-height: 1.1; margin-bottom: 4px; }
+  .ret-time { color: #d9c7a8; font-size: 13px; margin-bottom: 18px; }
+  .portal-card__hint { font-size: 12px; color: #9a8f80; margin-top: 22px; line-height: 1.8; }
+  .portal-card__hint b { color: #d9c7a8; direction: ltr; unicode-bidi: embed; }
+
+  /* ===== الجوال الصغير (S7/S9): تصغير الحقول والأزرار ===== */
+  @media (max-width: 400px) {
+    body { padding: 16px 14px; }
+    .portal-card__ring { width: 84px; height: 84px; margin-bottom: 12px; }
+    .portal-card__title { font-size: 22px; }
+    .portal-card__lead { margin-bottom: 16px; }
+    .step { padding: 11px 12px; gap: 10px; margin-bottom: 10px; }
+    .step__ico { width: 26px; height: 26px; }
+    .step__v { font-size: 14px; }
+    .code-input { font-size: 22px; letter-spacing: 5px; padding: 12px 8px; }
+    .enter-btn, .scan-btn { font-size: 15px; }
+  }
+  @media (max-width: 340px) {
+    .portal-card__ring { width: 74px; height: 74px; }
+    .portal-card__title { font-size: 19px; }
+    .step__v { font-size: 13px; }
+    .code-input { font-size: 19px; letter-spacing: 3px; padding: 10px 6px; }
+    .enter-btn { padding: 12px 16px; font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+  <div class="portal-card">
+    <div class="portal-card__ring"><img src="/images/logo.png?v=3" alt="{{NAME_AR}}"></div>
+
+    <div id="returnBox" style="display:none">
+      <div class="portal-card__title">أهلًا بعودتك</div>
+      <div class="ret-table" id="retNum">—</div>
+      <div class="ret-time" id="retStatus"></div>
+      <button class="enter-btn" id="resumeBtn">المتابعة إلى الطاولة</button>
+      <button class="enter-btn enter-btn--ghost" id="changeBtn" style="margin-top:10px">هذه ليست طاولتي — ادخل رمزًا آخر</button>
+    </div>
+
+    <div id="joinBox">
+      <h1 class="portal-card__title">أهلًا بك في منيو {{NAME_AR}}</h1>
+      <p class="portal-card__lead">أنت على شبكة المطعم — اطلب من جوالك مباشرةً عبر الخطوات التالية:</p>
+
+      <button type="button" id="scanBtn" class="step scan-btn">
+        <span class="step__ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+        </span>
+        <span class="step__txt"><span class="step__k">الخطوة 1</span><span class="step__v">اذهب إلى الكاميرا وامسح رمز QR على طاولتك</span></span>
+      </button>
+      <input type="file" id="scanInput" accept="image/*" capture="environment" hidden>
+
+      <div class="portal-or"><span>أو</span></div>
+
+      <div class="step" style="display:block; text-align:start">
+        <span class="step__k">الخطوة 2</span>
+        <form method="post" action="/enter" id="joinForm">
+          <label class="step__v" for="codeInput" style="margin:2px 0 8px">اكتب رمز الطاولة المكوّن من 6 أرقام</label>
+          <input name="code" id="codeInput" class="code-input" type="text" inputmode="numeric" pattern="[0-9 ]*" maxlength="8"
+            autocomplete="off" spellcheck="false" placeholder="0 0 0 0 0 0">
+          <button type="submit" id="enterBtn" class="enter-btn">دخول الطاولة</button>
+          <div class="portal-err" id="codeError"></div>
+        </form>
+      </div>
+
+      <p class="portal-card__hint">مدة الجلسة 20 دقيقة — ولأي استفسار نادِ الكاشير<br>
+        رابط البوابة: <b>menu.lan</b></p>
+    </div>
+  </div>
+<script src="/vendor/jsqr.min.js"></script>
+<script>
+(function () {
+  if (window.location.protocol === 'file:') {
+    var fileNotice = document.getElementById('codeError');
+    if (fileNotice) fileNotice.textContent = 'افتح الصفحة من رابط شبكة المطعم، وليس كملف محفوظ: http://عنوان-الخادم/portal.html';
+    var fileBtn = document.getElementById('enterBtn'); if (fileBtn) fileBtn.disabled = true;
+    var fileScan = document.getElementById('scanBtn'); if (fileScan) fileScan.disabled = true;
+    return;
+  }
+  var LS = '{{SLUG}}_code';
+  var joinBox = document.getElementById('joinBox');
+  var returnBox = document.getElementById('returnBox');
+  var input = document.getElementById('codeInput');
+  var form = document.getElementById('joinForm');
+  var btn = document.getElementById('enterBtn');
+  var err = document.getElementById('codeError');
+
+  function lsGet() { try { return window.localStorage ? window.localStorage.getItem(LS) : ''; } catch (e) { return ''; } }
+  function lsSet(v) { try { if (window.localStorage) window.localStorage.setItem(LS, v); } catch (e) {} }
+  function getCode() { return (lsGet() || '').replace(/\D/g, ''); }
+
+  if (form) form.addEventListener('submit', function (e) {
+    var code = (input ? input.value : '').replace(/\D/g, '');
+    if (code.length !== 6) {
+      e.preventDefault();
+      err.textContent = 'الكود 6 أرقام — انظر إلى بطاقة طاولتك';
+      if (input) input.select();
+    }
+  });
+
+  var scanBtn = document.getElementById('scanBtn');
+  var scanInput = document.getElementById('scanInput');
+  var scanBusy = false;
+
+  function onScanError(msg) {
+    scanBusy = false;
+    scanBtn.classList.remove('scan-btn--busy');
+    err.textContent = msg;
+  }
+
+  /* شاشات CaptivePortal WebView في أندرويد قد لا تفتح الكاميرا من داخلها؛
+     عند الفشل نحوّل الزر لفتح المسح في المتصفح الخارجي. */
+  var scanFallbackMode = false;
+  function switchScanToBrowser() {
+    if (scanFallbackMode) return;
+    scanFallbackMode = true;
+    var url = location.protocol + '//' + location.host + location.pathname + location.search + location.hash;
+    var a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener';
+    a.innerHTML = scanBtn.innerHTML;
+    a.className = scanBtn.className + ' scan-btn--browser';
+    scanBtn.parentNode.replaceChild(a, scanBtn);
+    err.textContent = 'هاتفك لا يسمح بفتح الكاميرا هنا — اضغط لفتح المسح في المتصفح، أو ادخل الرمز يدويًا';
+  }
+
+  if (scanBtn && scanInput) {
+    scanBtn.addEventListener('click', function () {
+      if (scanBusy || scanFallbackMode) return;
+      var opened = false, timeout = null;
+      var onOpened = function () { opened = true; if (timeout) { clearTimeout(timeout); timeout = null; } window.removeEventListener('blur', onOpened); document.removeEventListener('visibilitychange', onVis); };
+      var onVis = function () { if (document.hidden) onOpened(); };
+      window.addEventListener('blur', onOpened);
+      document.addEventListener('visibilitychange', onVis);
+      timeout = setTimeout(function () { timeout = null; window.removeEventListener('blur', onOpened); document.removeEventListener('visibilitychange', onVis); if (!opened) switchScanToBrowser(); }, 1200);
+      scanInput.value = '';
+      scanInput.click();
+    });
+    scanInput.addEventListener('change', function () {
+      var file = scanInput.files && scanInput.files[0];
+      if (!file) return;
+      scanBusy = true;
+      scanBtn.classList.add('scan-btn--busy');
+      err.textContent = 'جارٍ قراءة رمز الطاولة...';
+      var reader = new FileReader();
+      reader.onerror = function () { onScanError('تعذر قراءة الصورة — أعد المحاولة'); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () { onScanError('تعذر قراءة الصورة — أعد المحاولة'); };
+        img.onload = function () {
+          if (typeof jsQR !== 'function') { onScanError('المتصفح لا يدعم قراءة الرمز — استخدم كتابة الكود'); return; }
+          var MAX = 900;
+          var scale = Math.min(1, MAX / Math.max(img.width, img.height));
+          var w = Math.max(1, Math.round(img.width * scale));
+          var h = Math.max(1, Math.round(img.height * scale));
+          try {
+            var cv = document.createElement('canvas');
+            cv.width = w; cv.height = h;
+            var ctx = cv.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, w, h);
+            var imageData = ctx.getImageData(0, 0, w, h);
+            var qr = jsQR(imageData.data, w, h, { inversionAttempts: 'dontInvert' });
+            if (qr && qr.data) {
+              var url = String(qr.data).trim();
+              var m = url.match(/[?&]t=([A-Za-z0-9_-]{16,40})(?:[&#]|$)/i);
+              var token = m ? m[1] : (/^[A-Za-z0-9_-]{32}$/.test(url) ? url : '');
+              if (!token) { onScanError('هذا ليس رمز طاولة لدينا — أعد التصوير أو ادخل الكود'); return; }
+              scanBusy = false;
+              scanBtn.classList.remove('scan-btn--busy');
+              location.href = '/menu?t=' + encodeURIComponent(token);
+              return;
+            }
+            onScanError('صورة غير واضحة — أعد التصوير قرب رمز QR');
+          } catch (e) {
+            onScanError('تعذر قراءة الرمز — أعد التصوير أو استخدم كتابة الكود');
+          }
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function redeem(code, btnEl) {
+    err.textContent = '';
+    btnEl.disabled = true;
+    fetch('/api/session/redeem', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) {
+        btnEl.disabled = false;
+        if (x.ok && x.d.menu_url) { lsSet(code); location.href = x.d.menu_url; return; }
+        err.textContent = (x.d && x.d.error) || 'تعذر التحقق — نادِ الكاشير';
+        if (input) input.select();
+      })
+      .catch(function () { btnEl.disabled = false; err.textContent = 'تعذر الاتصال — أعد المحاولة'; });
+  }
+
+  function showJoin() { returnBox.style.display = 'none'; joinBox.style.display = ''; if (input) input.focus(); }
+  function fmt(sec) { var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+
+  var saved = getCode();
+  if (saved && saved.length === 6 && typeof fetch === 'function') {
+    fetch('/api/session/peek?code=' + saved)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.table_number || !d.active) return;
+        joinBox.style.display = 'none';
+        returnBox.style.display = '';
+        document.getElementById('retNum').textContent = 'طاولة ' + d.table_number;
+        document.getElementById('retStatus').textContent = 'جلستك ما زالت مفتوحة · الوقت المتبقي ' + fmt(d.remaining_seconds);
+        document.getElementById('resumeBtn').addEventListener('click', function () { redeem(saved, this); });
+        document.getElementById('changeBtn').addEventListener('click', showJoin);
+      })
+      .catch(function () {});
+  } else {
+    // لا تركيز تلقائي — حتى لا يغطي الكيبورد شاشة الجوال فوق خطوة الكاميرا/QR
+  }
+})();
+</script>
+</body>
+</html>

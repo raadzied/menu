@@ -1,0 +1,14 @@
+{
+  "slug": "mesakhen",
+  "name_ar": "مسخن",
+  "name_en": "Mesakhen",
+  "product_ar": "منيو ون",
+  "system_name": "نظام منيو ون الذكي",
+  "colors": {
+    "accent": "#f97316",
+    "accent_deep": "#ea580c",
+    "glow": "rgba(249, 115, 22, 0.45)",
+    "brand_text": "#c2571a"
+  },
+  "demo_menu": true
+}

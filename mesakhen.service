@@ -1,0 +1,17 @@
+[Unit]
+Description=MenuOne - Mesakhen local menu server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# معدّل المسار/المستخدم حسب موضع نصب المشروع
+User=mesakhen
+WorkingDirectory=/opt/mesakhen
+EnvironmentFile=/opt/mesakhen/.env
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

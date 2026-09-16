@@ -1,0 +1,32 @@
+# ===== MenuOne / mesakhen-menu =====
+# Dependencies & build outputs (rebuilt locally via npm scripts)
+node_modules/
+dist/
+dist-desktop/
+build-cache/
+.electron-builder-cache/
+.electron-cache/
+portable-test-data/
+.playwright-mcp/
+
+# Secrets & local runtime data (NEVER commit)
+.env
+server/db/restaurant.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Logs & one-off session artifacts
+*.log
+*-err.txt
+*-out.txt
+_inspect.txt
+carousel-1.png
+
+# Packaged binaries (rebuilt via electron-builder / Inno Setup)
+*.exe
+*.blockmap
+
+# OS junk
+.DS_Store
+Thumbs.db

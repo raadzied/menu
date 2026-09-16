@@ -1,0 +1,89 @@
+{
+    "name":  "mesakhen-menu",
+    "version":  "1.0.1",
+    "description":  "نظام منيو ذكي محلي لمطعم مسخن - يعمل بدون إنترنت على شبكة محلية",
+    "main":  "desktop/main.js",
+    "scripts":  {
+                    "start":  "node server/index.js",
+                    "seed":  "node server/db/seed.js",
+                    "build-client":  "node tools/build-client.js",
+                    "build-desktop":  "npm run build-client -- mesakhen \u0026\u0026 electron-builder --win"
+                },
+    "bin":  "server/index.js",
+    "pkg":  {
+                "assets":  [
+                               "server/public/**/*",
+                               "server/db/schema.sql",
+                               "server/db/seed.db",
+                               "brand.json"
+                           ],
+                "outputPath":  "dist"
+            },
+    "dependencies":  {
+                         "bcryptjs":  "^2.4.3",
+                         "cookie-parser":  "^1.4.6",
+                         "dotenv":  "^16.4.5",
+                         "express":  "^4.21.0",
+                         "express-rate-limit":  "^7.4.0",
+                         "express-session":  "^1.18.0",
+                         "helmet":  "^7.1.0",
+                         "qrcode":  "^1.5.4",
+                         "ssh2":  "^1.17.0"
+                     },
+    "devDependencies":  {
+                            "@yao-pkg/pkg":  "^6.22.0",
+                            "electron":  "^44.3.0",
+                            "electron-builder":  "^26.15.3",
+                            "png-to-ico":  "^3.0.2",
+                            "rcedit":  "^5.0.2",
+                            "sharp":  "^0.35.4"
+                        },
+    "build":  {
+                  "appId":  "com.menuone.mesakhen",
+                  "productName":  "منيو ون - مسخن",
+                  "directories":  {
+                                      "output":  "dist-desktop"
+                                  },
+                  "files":  [
+                                "desktop/**/*",
+                                "package.json",
+                                "!node_modules/**/*"
+                            ],
+                  "extraResources":  [
+                                         {
+                                             "from":  "dist/MenuOne-mesakhen.exe",
+                                             "to":  "server/MenuOne-mesakhen.exe"
+                                         }
+                                     ],
+                  "win":  {
+                              "icon":  "clients/mesakhen/app.ico",
+                              "target":  [
+                                             {
+                                                 "target":  "portable",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             },
+                                             {
+                                                 "target":  "nsis",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             }
+                                         ]
+                          },
+                  "nsis":  {
+                               "include":  "build/installer.nsh",
+                               "oneClick":  false,
+                               "perMachine":  true,
+                               "allowToChangeInstallationDirectory":  true,
+                               "createDesktopShortcut":  true,
+                               "createStartMenuShortcut":  true
+                           }
+              },
+    "allowScripts":  {
+                         "electron@44.3.0":  true,
+                         "electron-builder@26.15.3":  true,
+                         "electron-winstaller@5.4.0":  true
+                     }
+}

@@ -1,0 +1,14 @@
+{
+  "slug": "bella",
+  "name_ar": "بيلا بيتزا",
+  "name_en": "Bella Pizza",
+  "product_ar": "منيو ون",
+  "system_name": "نظام منيو ون الذكي",
+  "colors": {
+    "accent": "#16a34a",
+    "accent_deep": "#15803d",
+    "glow": "rgba(22, 163, 74, 0.45)",
+    "brand_text": "#15803d"
+  },
+  "demo_menu": false
+}

@@ -1,4 +1,4 @@
-# ===== MenuOne / mesakhen-menu =====
+﻿# ===== MenuOne / mesakhen-menu =====
 # Dependencies & build outputs (rebuilt locally via npm scripts)
 node_modules/
 dist/
@@ -30,3 +30,10 @@ carousel-1.png
 # OS junk
 .DS_Store
 Thumbs.db
+
+# one-off Arabic session scratch (real names)
+فحص-الشعار/
+آخر-بناء.log
+دراسات-تطوير-مستقبلي.md
+دليل-ضبط-المودم.md
+شعار التطبيق.png

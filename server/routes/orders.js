@@ -194,7 +194,16 @@ router.get('/bills', requireAuth, (req, res) => {
 });
 
 router.get('/:id/track', (req, res) => {
-  const order = db.prepare('SELECT id, status, total, created_at FROM orders WHERE id = ?').get(req.params.id);
+  const { session_id, table_token } = req.query;
+  if (!session_id || !table_token) return res.status(400).json({ error: 'بيانات غير كافية' });
+  const table = db.prepare('SELECT * FROM tables WHERE token = ?').get(String(table_token));
+  if (!table) return res.status(404).json({ error: 'الطلب غير موجود' });
+
+  const order = db.prepare(`
+    SELECT id, status, total, created_at FROM orders
+    WHERE id = ? AND session_id = ? AND table_id = ?
+  `).get(req.params.id, Number(session_id) || 0, table.id);
+
   if (!order) return res.status(404).json({ error: 'الطلب غير موجود' });
   res.json(order);
 });
@@ -223,8 +232,10 @@ router.patch('/:id/status', requireAuth, (req, res) => {
   if (!allowed.includes(status)) return res.status(400).json({ error: 'حالة غير صحيحة' });
   const info = db.prepare(`UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: 'الطلب غير موجود' });
-  db.prepare('INSERT INTO audit_log (user_id, action, details) VALUES (?,?,?)')
-    .run(req.session.userId, 'update_order_status', `تحديث حالة الطلب #${req.params.id} إلى ${status}`);
+  try {
+    db.prepare('INSERT INTO audit_log (user_id, action, details) VALUES (?,?,?)')
+      .run(req.session.userId, 'update_order_status', `تحديث حالة الطلب #${req.params.id} إلى ${status}`);
+  } catch (e) { console.error('audit fail:', e); }
   res.json({ ok: true });
 });
 

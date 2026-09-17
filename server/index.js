@@ -54,11 +54,14 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false, limit: '2mb' }));
 app.use(cookieParser());
 
-if (!process.env.SESSION_SECRET) console.warn('تحذير أمني: SESSION_SECRET غير مضبوط — عيّن قيمة عشوائية طويلة في الإعدادات');
+if (!process.env.SESSION_SECRET) {
+  console.error('خطأ أمني: SESSION_SECRET غير مضبوط في ملف الإعدادات.');
+  process.exit(1);
+}
 
 app.use(session({
   name: brand.cookieName,
-  secret: process.env.SESSION_SECRET || 'change-me',
+  secret: process.env.SESSION_SECRET,
   store: require('./db/session-store')(),
   resave: false,
   saveUninitialized: false,
@@ -66,6 +69,7 @@ app.use(session({
 }));
 
 const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 120 });
+const strictLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: 'محاولات كثيرة، يرجى الانتظار دقيقة.' });
 app.use('/api/', apiLimiter);
 
 /* بوابة الالتقاط: اكتشاف أنظمة التشغيل (ويندوز/أندرويد/آبل/فايرفوكس)
@@ -256,7 +260,7 @@ function renderPortal(errorMsg) {
     '<div class="portal-err" id="codeError"></div>',
     `<div class="portal-err" id="codeError">${String(errorMsg).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`);
 }
-app.post('/enter', (req, res) => {
+app.post('/enter', strictLimiter, (req, res) => {
   const r = sessionPublicRoutes.redeemCode((req.body || {}).code, req);
   if (r.ok) return res.redirect(302, r.menu_url);
   res.status(200).type('html').send(renderPortal(r.error));
@@ -266,7 +270,7 @@ const escapeHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').repl
 
 /* نسخة HTML خالص من المنيو للمتصفحات/الويف فيو القديمة (بلا fetch/fliterals).
    تعمل كاملاً بدون JS: تدخل الجلسة من الخادم وتعرض الأصناف والعداد لحظة التحميل. */
-app.get('/menu-lite', (req, res) => {
+app.get('/menu-lite', strictLimiter, (req, res) => {
   const t = String(req.query.t || '').replace(/[^A-Za-z0-9_-]/g, '');
   res.type('html');
   /* بلا رمز: نموذج كود بسيط يعيد نفس النتيجة */
@@ -360,6 +364,16 @@ app.use((req, res) => {
   const host = (req.headers.host || '').toLowerCase().split(':')[0];
   if (/^(192\.168|127\.|localhost|\[::1\])/.test(host)) return res.status(404).send('الصفحة غير موجودة');
   res.redirect(302, `http://${detectLanIp()}/portal.html`);
+});
+
+app.use((err, req, res, next) => {
+  console.error('خطأ غير معالج:', err.stack);
+  res.status(500).send('عذراً، حدث خطأ داخلي.');
+});
+
+app.use((err, req, res, next) => {
+  console.error('خطأ غير معالج:', err.stack);
+  res.status(500).send('عذراً، حدث خطأ داخلي.');
 });
 
 function friendlyListenError(label) {

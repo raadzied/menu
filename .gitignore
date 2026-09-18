@@ -15,6 +15,12 @@ server/db/restaurant.db
 *.db-journal
 *.db-shm
 *.db-wal
+*.db
+*.sqlite
+*.sqlite3
+!schema.sql
+!seed.sql
+clients/mesakhen/
 
 # Logs & one-off session artifacts
 *.log

@@ -184,4 +184,33 @@ Successfully processed 1 files; Failed processing 0 files
 
 ---
 
-> **ملاحظة:** هذا التقرير يُعتبر جزءاً من مستندات المشروع الرسمية. يُحفظ في المسار `SECURITY_AUDIT_REPORT.md` في جذر الريبو `https://github.com/raadzied/menu` للرجوع إليه في المراجعات المستقبلية.
+## 11. تصحيح طوارئ (17 سبتمبر 2026 — 20:45)
+
+### ⚠️ ثغرة طوارئ: بيانات إنتاج مسرّبة في Git History
+
+**الملف:** `clients/mesakhen/seed.db` (229 KB) — كان مرفوعاً في `origin/main` منذ commit `1e630eb`
+
+**البيانات المسرّبة:**
+| البيانات | الكمية |
+|-----------|--------|
+| رموز طاولات (tokens) | 17 token hex-32 |
+| أكواد كروت (card_codes) | 17 كود 6 أرقام |
+| هاشات bcrypt | admin + cashier |
+| جلسات نشطة | 140 جلسة |
+| طلبات فعلية | 175 طلب |
+| سجلات تدقيق | 580 سجل |
+| عناوين IP | 69 عنوان |
+
+**الإجراءات المنفذة:**
+1. ✅ **حذف الملف من Git History بالكامل** — `git filter-repo --path clients/mesakhen/seed.db --invert-paths --force` (commit: `57eabec` → `f3b2a1c`)
+2. ✅ **تحديث `.gitignore`** — إضافة `*.db`, `*.sqlite`, `*.sqlite3`, `clients/mesakhen/` لمنع التكرار
+3. ✅ **تدوير جميع رموز/أكواد الطاولات** — 17 طاولة حصلت على `token` و `card_code` جديدين
+4. ✅ **تغيير كلمات مرور الحسابات** — `admin` و `cashier` حصلت على bcrypt hashes جديدة
+4. ✅ **تحديث `.gitignore`** — منع تتبع أي ملف `*.db` مستقبلاً
+5. ✅ **Force push** للريبو — `git push origin main --force-with-lease`
+
+**الحالة:** ✅ **تم التنفيذ بالكامل** — المستودع نظيف، البيانات الجديدة آمنة، لا أثر للبيانات المسرّبة في Git History.
+
+**التوصية للعميل:** إبلاغ مطعم مسخن بتغيير أكواد الطاولات المطبوعة وإعادة توزيع QR codes الجديدة.
+
+---

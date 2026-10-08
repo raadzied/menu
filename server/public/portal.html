@@ -2,16 +2,19 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>منيو {{NAME_AR}} | بوابة الطاولات</title>
 <link rel="stylesheet" href="/css/tokens.css">
 <style>
   * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body { margin: 0; min-height: 100vh; min-height: 100dvh;
+  html, body { height: 100%; margin: 0; padding: 0; }
+  body {
     display: flex; align-items: center; justify-content: center; padding: 20px 18px;
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    background: #0f0d0b;
     background: radial-gradient(120% 90% at 50% 118%, #5C3A1E 0%, #3D2B1F 55%, #0f0d0b 100%);
-    color: #fff; font-family: var(--font-body, system-ui, 'Segoe UI', Tahoma, sans-serif);
+    color: #fff; font-family: var(--font-body, system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif);
     -webkit-text-size-adjust: 100%; }
   button, input { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
@@ -92,7 +95,7 @@
 </head>
 <body>
   <div class="portal-card">
-    <div class="portal-card__ring"><img src="/images/logo.png?v=3" alt="{{NAME_AR}}"></div>
+    <div class="portal-card__ring"><img src="/images/logo.png?v=3" alt="{{NAME_AR}}" width="124" height="124" decoding="async" onerror="this.style.display='none'"></div>
 
     <div id="returnBox" style="display:none">
       <div class="portal-card__title">أهلًا بعودتك</div>

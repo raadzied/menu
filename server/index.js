@@ -73,18 +73,23 @@ const strictLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: 'محا
 app.use('/api/', apiLimiter);
 
 /* بوابة الالتقاط: اكتشاف أنظمة التشغيل (ويندوز/أندرويد/آبل/فايرفوكس)
-   عند اتصالها بشبكة المطعم — تُحوَّل تلقائيًا لصفحة مسخن */
+   عند اتصالها بشبكة المطعم — تُحوَّل تلقائيًا لصفحة مسخن
+   ملاحظة S24/S25 وآيفون الحديثة: تفحص https أيضاً ولا يمكن اعتراضه بدون شهادة،
+   لكن طلبات http يجب الرد عليها بسرعة وبدون كاش حتى تظهر نافذة الدخول */
 const PROBE_HOSTS = [
   'www.msftconnecttest.com', 'www.msftncsi.com', 'connectivitycheck.gstatic.com',
   'connectivitycheck.android.com', 'clients3.google.com', 'captive.apple.com',
-  'detectportal.firefox.com', 'cp.cloudflare.com', 'example.com', 'neverssl.com', 'httpcheck.android.com',
+  'www.apple.com', 'www.icloud.com', 'detectportal.firefox.com', 'cp.cloudflare.com',
+  'example.com', 'neverssl.com', 'httpcheck.android.com',
+  'connectivitycheck.samsung.com', 'www.samsung.com',
+  'connectivitycheck.gstatic.cn', 'play.googleapis.com',
 ];
 const PROBE_PATHS = ['/generate_204', '/gen_204', '/hotspot-detect.html', '/ncsi.txt', '/success.txt',
   '/canonical/index.html', '/status.txt', '/library/test/success.html', '/httpinfo.json', '/'];
 function isProbe(req) {
   const host = (req.headers.host || '').toLowerCase().split(':')[0];
   if (PROBE_HOSTS.includes(host)) return true;
-  return req.path === '/redirect' || (PROBE_HOSTS.length && PROBE_PATHS.includes(req.path) && !/^(192\.168|localhost|\d+\.)/.test(host));
+  return req.path === '/redirect' || (PROBE_PATHS.includes(req.path) && !/^(192\.168|localhost|\d+\.)/.test(host));
 }
 /* اسم الشبكة المحلي → عنوان السيرفر (موحّد أصل التخزين، ويتجاوز DoH بأجهزة الزبائن) */
 app.use((req, res, next) => {
@@ -99,10 +104,21 @@ app.use((req, res, next) => {
   if (!isProbe(req)) return next();
   const portal = `http://${detectLanIp()}/portal.html`;
   const p = req.path;
-  /* حسب إجماع الاستشارات: أندرويد/ويندوز يُحفَّزان بـ 302، وآبل بصفحة 200 مختلفة المحتوى */
+  const host = (req.headers.host || '').toLowerCase().split(':')[0];
+  // منع الكاش تماماً: الأجهزة الحديثة تكره الاستجابات المخزنة للـ probes
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.set('Pragma', 'no-cache');
+  /* أندرويد/ويندوز وسامسونج الحديثة تُحفَّز بـ 302 نحو البوابة */
   if (['/redirect', '/status.txt', '/generate_204', '/gen_204', '/ncsi.txt', '/connecttest.txt', '/success.txt', '/canonical/index.html', '/canonical.html', '/library/test/success.html'].includes(p)) {
     return res.redirect(302, portal);
   }
+  /* آبل iOS: أي رد غير كلمة Success يفتح نافذة CNA وتعرض البوابة.
+     لذلك نرسل portalHtml مع 200 (وليس Success) حتى تظهر صفحة الدخول ولا تُرفض الشبكة.
+     ملاحظة: إرسال Success يخفي البوابة تماماً — ممنوع هنا. */
+  if (p === '/hotspot-detect.html' && host.includes('captive.apple.com')) {
+    return res.status(200).type('html').send(portalHtml);
+  }
+
   /* بوابات iPhone/Android تستدعي هذا المسار مباشرة؛ استخدم النسخة المعالجة
      بالهوية حتى لا تصل وسوم {{NAME_AR}} الخام للمتصفح. */
   res.status(200).type('html').send(portalHtml);

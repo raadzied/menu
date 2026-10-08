@@ -629,27 +629,14 @@ function stopTimers() {
 
 /* ===== مؤثرات عند التنقّل والضغط ===== */
 function onActiveChange(i) {
-  console.log('[onActiveChange] triggered for index:', i);
   haptic(6);
   const card = CAR.cards && CAR.cards[i];
   if (!card) return;
-  const ring = card.querySelector('.item-photo-ring');
-  if (!ring) return;
-  console.log('[onActiveChange] animating ring:', ring);
-  
-  // مؤشر بصري مؤقت: وميض حدود ذهبي
-  ring.style.boxShadow = '0 0 0 4px var(--brown-gold), 0 0 22px rgba(184,134,11,0.35), inset 0 0 22px rgba(200,160,60,0.22)';
-  setTimeout(() => { ring.style.boxShadow = ''; }, 150);
-  
-  // أنميشن النبضة على الصورة
-  const img = ring.querySelector('img, .item-photo-ring__initial');
-  if (img) {
-    img.classList.remove('card-pop');
-    requestAnimationFrame(() => {
-      img.classList.add('card-pop');
-      console.log('[onActiveChange] card-pop class added via rAF');
-    });
-  }
+  const img = card.querySelector('.item-photo-ring img, .item-photo-ring__initial');
+  if (!img) return;
+  // إعادة تشغيل موثوقة للأنميشن عبر rAF (تعمل حتى مع Reduce Motion بفضل تجاوز CSS)
+  img.classList.remove('card-pop');
+  requestAnimationFrame(() => { img.classList.add('card-pop'); });
 }
 function bumpFab() {
   const fab = document.getElementById('cartFab');

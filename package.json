@@ -12,10 +12,9 @@
     "bin":  "server/index.js",
     "pkg":  {
                 "assets":  [
-                               "server/public/**/*",
-                               "server/db/schema.sql",
-                               "server/db/seed.db",
-                               "brand.json"
+                "server/public/**/*",
+                                "server/db/schema.sql",
+                                "brand.json"
                            ],
                 "outputPath":  "dist"
             },

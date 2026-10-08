@@ -43,7 +43,7 @@
     el.className = 'notify-toast';
     el.innerHTML = `
       <div class="notify-toast__title">طلب جديد #${order.id}</div>
-      <div>طاولة <span class="num">${order.table_number || '-'}</span> — <span class="num">${order.total.toLocaleString('en-US')}</span> ريال</div>
+      <div><span class="num">${order.total.toLocaleString('en-US')}</span> ريال — توجه للكاشير</div>
       ${order.notes ? `<div class="notify-toast__note">🗒️ ${esc(order.notes)}</div>` : ''}
     `;
     el.addEventListener('click', () => {

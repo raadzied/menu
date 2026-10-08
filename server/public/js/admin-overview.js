@@ -6,7 +6,6 @@ async function renderOverview(root) {
         <div class="stat-card"><div class="stat-card__label">طلبات اليوم</div><div class="stat-card__value"><span class="num">${s.today_orders_count}</span></div></div>
         <div class="stat-card"><div class="stat-card__label">إيراد اليوم</div><div class="stat-card__value"><span class="num">${s.today_revenue.toLocaleString('en-US')}</span> ريال</div></div>
         <div class="stat-card"><div class="stat-card__label">طلبات قيد التنفيذ</div><div class="stat-card__value"><span class="num">${s.pending_orders}</span></div></div>
-        <div class="stat-card"><div class="stat-card__label">طاولات مشغولة</div><div class="stat-card__value"><span class="num">${s.active_tables}</span> / <span class="num">${s.total_tables}</span></div></div>
       </div>
       <div class="panel">
         <div class="panel__title">الأصناف الأكثر طلبًا اليوم</div>

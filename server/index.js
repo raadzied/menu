@@ -10,13 +10,11 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 
 const authRoutes = require('./routes/auth');
-const tableRoutes = require('./routes/tables');
 const menuRoutes = require('./routes/menu');
 const orderRoutes = require('./routes/orders');
 const qrRoutes = require('./routes/qr');
 const dashboardRoutes = require('./routes/dashboard');
 const userRoutes = require('./routes/users');
-const sessionPublicRoutes = require('./routes/session_public');
 const { csrfGuard } = require('./middleware/auth');
 const { baseUrl, detectLanIp } = require('./utils');
 const { brand, applyTokens } = require('./brand');
@@ -24,9 +22,6 @@ const { brandStatic } = require('./brandify');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-/* وضع منيو العرض المؤقت: بدون طاولات/جلسات/أكواد — الزبون يختار طاولته بنفسه
-   ويستلم رقم طلب للدفع عند الكاشير. إطفاء المفتاح يعيد النظام الكامل فورًا. */
-const DISPLAY_MODE = process.env.DISPLAY_MODE === '1';
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -98,49 +93,27 @@ function isProbe(req) {
 app.use((req, res, next) => {
   const hostHeader = (req.headers.host || '').toLowerCase().split(':')[0];
   if (hostHeader === 'menu.lan') {
-    const landing = DISPLAY_MODE ? '/menu' : '/portal.html';
-    return res.redirect(301, `http://${detectLanIp()}${req.originalUrl === '/' ? landing : req.originalUrl}`);
+    return res.redirect(301, `http://${detectLanIp()}${req.originalUrl === '/' ? '/menu' : req.originalUrl}`);
   }
   next();
 });
 
 app.use((req, res, next) => {
   if (!isProbe(req)) return next();
-  const portal = `http://${detectLanIp()}/portal.html`;
-  const p = req.path;
-  const host = (req.headers.host || '').toLowerCase().split(':')[0];
   // منع الكاش تماماً: الأجهزة الحديثة تكره الاستجابات المخزنة للـ probes
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.set('Pragma', 'no-cache');
-  /* وضع العرض: كل الفحوص تتحول مباشرة للمنيو (خطوة واحدة بدل بوابة ثم منيو) */
-  if (DISPLAY_MODE) {
-    return res.redirect(302, `http://${detectLanIp()}/menu`);
-  }
-  /* أندرويد/ويندوز وسامسونج الحديثة تُحفَّز بـ 302 نحو البوابة */
-  if (['/redirect', '/status.txt', '/generate_204', '/gen_204', '/ncsi.txt', '/connecttest.txt', '/success.txt', '/canonical/index.html', '/canonical.html', '/library/test/success.html'].includes(p)) {
-    return res.redirect(302, portal);
-  }
-  /* آبل iOS: أي رد غير كلمة Success يفتح نافذة CNA وتعرض البوابة.
-     لذلك نرسل portalHtml مع 200 (وليس Success) حتى تظهر صفحة الدخول ولا تُرفض الشبكة.
-     ملاحظة: إرسال Success يخفي البوابة تماماً — ممنوع هنا. */
-  if (p === '/hotspot-detect.html' && host.includes('captive.apple.com')) {
-    return res.status(200).type('html').send(portalHtml);
-  }
-
-  /* بوابات iPhone/Android تستدعي هذا المسار مباشرة؛ استخدم النسخة المعالجة
-     بالهوية حتى لا تصل وسوم {{NAME_AR}} الخام للمتصفح. */
-  res.status(200).type('html').send(portalHtml);
+  /* أي جهاز يتصل يدخل المنيو مباشرة: تحويل واحد لكل الفحوص (أندرويد/آبل/ويندوز) */
+  return res.redirect(302, `http://${detectLanIp()}/menu`);
 });
 
 app.use('/api/', csrfGuard);
 app.use('/api/auth', authRoutes);
-app.use('/api/tables', tableRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/session', sessionPublicRoutes);
 
 const db = require('./db/database');
 const { nowSql } = require('./utils');
@@ -164,31 +137,10 @@ const MENU_UA_GUARD = `
 `;
 
 app.get('/menu', (req, res) => {
-  let html = menuTemplate.replace('<link rel="stylesheet" href="/css/menu.css">',
+  const html = menuTemplate.replace('<link rel="stylesheet" href="/css/menu.css">',
     MENU_UA_GUARD + '<link rel="stylesheet" href="/css/menu.css">');
-  /* وضع العرض: إبلاغ الواجهة لتتجاوز بوابة الكود وتعرض اختيار الطاولة */
-  if (DISPLAY_MODE) html = html.replace('<div id="app"></div>', '<script>window.__DISPLAY_MODE__=true;</script><div id="app"></div>');
   res.type('html').send(html);
 });
-
-function expireOverdueSessions() {
-  try {
-    const expired = db.prepare(`
-      SELECT * FROM table_sessions WHERE status = 'active' AND expires_at < datetime('now')
-    `).all();
-    for (const session of expired) {
-      db.prepare(`UPDATE table_sessions SET status='expired', ended_at = ? WHERE id = ?`).run(nowSql(), session.id);
-      db.prepare(`UPDATE tables SET status='available' WHERE id = ?`).run(session.table_id);
-      require('./evict').evictSession(db, { tableId: session.table_id, sessionId: session.id, reason: 'expired' });
-    }
-    if (expired.length) console.log(`تم إنهاء ${expired.length} جلسة منتهية تلقائيًا`);
-  } catch (e) {
-    console.error('خطأ في فحص الجلسات المنتهية:', e.message);
-  }
-}
-
-expireOverdueSessions();
-setInterval(expireOverdueSessions, 30 * 1000);
 
 /* ===== تقديم الصور المحسّنة: نسخ opt/ (WebP/JPEG) بكاش طويل =====
    الأسماء ومسارات قاعدة البيانات لا تتغير — تُقدَّم النسخة المحسّنة إن
@@ -243,13 +195,11 @@ app.use((req, res, next) => {
   next();
 });
 
-/* وضع العرض: صفحة البوابة تحوّل مباشرة للمنيو (قبل التقديم الثابت) */
-if (DISPLAY_MODE) {
-  app.use((req, res, next) => {
-    if (req.path === '/portal.html' || req.path === '/portal') return res.redirect(302, '/menu');
-    next();
-  });
-}
+/* صفحة البوابة تحوّل مباشرة للمنيو (قبل التقديم الثابت) — لا طاولات ولا أكواد */
+app.use((req, res, next) => {
+  if (req.path === '/portal.html' || req.path === '/portal') return res.redirect(302, '/menu');
+  next();
+});
 
 /* مجلد Assets قابل للكتابة في وضع exe — يقدَّم قبل الملفات المضمونة */
 if (process.env.ASSETS_DIR) {
@@ -289,18 +239,9 @@ app.get('/portal.html', (req, res) => {
 /* نموذج HTML خالص لدخول الطاولة (بلا JS — يعمل على أقدم المتصفحات/iOS الويف فيو).
    النجاح: تحويل إلى المنيو. الفشل: إعادة الصفحة مع رسالة خطأ ظاهرة. */
 const portalHtml = applyTokens(require('fs').readFileSync(path.join(__dirname, 'public', 'portal.html'), 'utf8'));
-function renderPortal(errorMsg) {
-  if (!errorMsg) return portalHtml;
-  return portalHtml.replace(
-    '<div class="portal-err" id="codeError"></div>',
-    `<div class="portal-err" id="codeError">${String(errorMsg).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`);
-}
 app.post('/enter', strictLimiter, (req, res) => {
-  /* وضع العرض: لا أكواد — أي إرسال يذهب للمنيو مباشرة */
-  if (DISPLAY_MODE) return res.redirect(302, '/menu');
-  const r = sessionPublicRoutes.redeemCode((req.body || {}).code, req);
-  if (r.ok) return res.redirect(302, r.menu_url);
-  res.status(200).type('html').send(renderPortal(r.error));
+  /* لا أكواد — أي إرسال يذهب للمنيو مباشرة (للتوافق مع روابط/نماذج قديمة) */
+  return res.redirect(302, '/menu');
 });
 
 const escapeHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -311,7 +252,6 @@ app.get('/menu-lite', strictLimiter, (req, res) => {
   const t = String(req.query.t || '').replace(/[^A-Za-z0-9_-]/g, '');
   res.type('html');
   /* وضع العرض: نسخة خام للهواتف القديمة بلا كود وبلا جلسة — للطلب: جهاز حديث أو الكاشير */
-  if (DISPLAY_MODE) {
     try {
       const categories = db.prepare('SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order').all();
       const itemsStmt = db.prepare('SELECT * FROM menu_items WHERE category_id = ? AND is_available = 1 ORDER BY sort_order');
@@ -342,104 +282,18 @@ nav a{color:#ffb300;font-size:15px}</style></head><body>
 <hdr><b>منيو ${brand.nameAr}</b></hdr>
 ${rows}
 <nav><a href="/menu">النسخة التفاعلية (للأجهزة الحديثة)</a></nav>
-<div class="foot">للطلب من هذا الجهاز: اختر طاولتك في النسخة التفاعلية — أو اطلب مباشرة من الكاشير</div>
+<div class="foot">للطلب: افتح النسخة التفاعلية من جهاز حديث — أو اطلب مباشرة من الكاشير</div>
 </body></html>`);
     } catch (e) {
       console.error('menu-lite display:', e.message);
       return res.status(500).send('تعذر تحميل المنيو');
     }
-  }
-  /* بلا رمز: نموذج كود بسيط يعيد نفس النتيجة */
-  const entryForm = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>منيو ${brand.nameAr} · دخول الطاولة</title>
-<style>body{font-family:system-ui,'Segoe UI',Arial,sans-serif;background:#111;color:#fff;margin:0;padding:20px;text-align:center}
-.box{max-width:400px;margin:40px auto;background:#1c1c1c;border:1px solid #333;border-radius:12px;padding:24px}
-input{font-size:22px;padding:12px;width:190px;text-align:center;border-radius:8px;border:1px solid #555;direction:ltr}
-button{margin-top:14px;font-size:20px;padding:12px 26px;background:#c0392b;color:#fff;border:0;border-radius:8px;cursor:pointer;width:100%;font-family:inherit}
-.err{color:#ff5252;margin-top:12px;font-size:15px}</style></head><body>
-<div class="box"><h2>أهلًا في ${brand.nameAr}</h2>
-<p>ادخل كود الطاولة (6 أرقام):</p>
-<form method="post" action="/enter">
-<input name="code" value="" maxlength="8" autocomplete="off">
-<button type="submit">دخول الطاولة</button>
-</form>
-${req.query.err ? `<div class="err">الرمز غير صحيح — تحقق من بطاقة الطاولة</div>` : ''}
-</div></body></html>`;
-  if (!t) return res.send(entryForm);
-
-  const table = db.prepare('SELECT * FROM tables WHERE token = ?').get(t);
-  if (!table || table.status === 'disabled') return res.send(entryForm);
-  try {
-    /* ادّعاء جلسة في الرابط (تحديث بعد النهاية): لا نُعيد الإنشاء — نعرض انتهاءً
-       ونُرسل لصفحة الدخول، تمامًا مثل /api/session/check في النسخة الكاملة */
-    const sClaim = String(req.query.s || '').replace(/[^0-9]/g, '');
-    let session;
-    if (sClaim) {
-      const claimed = db.prepare('SELECT * FROM table_sessions WHERE id = ? AND table_id = ?').get(Number(sClaim), table.id);
-      const freshClaimed = claimed && claimed.status === 'active' && sessionPublicRoutes.expireIfDead(claimed);
-      if (!freshClaimed) {
-        return res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>انتهت الجلسة · ${brand.nameAr}</title>
-<style>body{font-family:system-ui,'Segoe UI',Arial,sans-serif;background:#111;color:#fff;margin:0;padding:20px;text-align:center}
-.box{max-width:400px;margin:40px auto;background:#1c1c1c;border:1px solid #333;border-radius:12px;padding:24px}
-a{display:inline-block;margin-top:16px;font-size:19px;padding:12px 26px;background:#c0392b;color:#fff;border-radius:8px;text-decoration:none}</style></head><body>
-<div class="box"><h2>انتهت الجلسة</h2><p>أنهى الكاشير هذه الجلسة أو انتهت مدتها.</p>
-<a href="/portal.html">الذهاب لصفحة الدخول</a></div></body></html>`);
-      }
-      const active = sessionPublicRoutes.expireIfDead(sessionPublicRoutes.findActiveStmt().get(table.id));
-      session = active || freshClaimed;
-    } else {
-      session = sessionPublicRoutes.ensureSession(table);
-    }
-    sessionPublicRoutes.registerDevice(session.id, req);
-    const remaining = Math.max(0, Math.floor((new Date(session.expires_at.replace(' ', 'T') + 'Z').getTime() - Date.now()) / 1000));
-    const mm = Math.floor(remaining / 60), ss = remaining % 60;
-
-    const categories = db.prepare('SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order').all();
-    const itemsStmt = db.prepare('SELECT * FROM menu_items WHERE category_id = ? AND is_available = 1 ORDER BY sort_order');
-    const rows = categories.map((c) => {
-      const items = itemsStmt.all(c.id);
-      const lis = items.map((it) => `
-      <li class="item">
-        <div class="row"><span class="nm">${escapeHtml(it.name_ar)}</span><span class="pr">${it.price.toLocaleString('ar-EG')} ر.ي</span></div>
-        ${it.description_ar ? `<div class="ds">${escapeHtml(it.description_ar)}</div>` : ''}
-      </li>`).join('');
-      return `<section><h2>${escapeHtml(c.name_ar)}</h2><ul>${lis}</ul></section>`;
-    }).join('');
-
-    res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>منيو ${brand.nameAr} · طاولة ${escapeHtml(table.table_number)}</title>
-<style>body{font-family:system-ui,'Segoe UI',Arial,sans-serif;background:#111;color:#fff;margin:0;padding:0 16px 40px}
-hdr{display:block;padding:16px 0 10px;border-bottom:1px solid #333;text-align:center}
-hdr b{font-size:22px}.timer{color:#ffb300;font-size:18px;margin-top:6px}
-section{margin-top:22px}h2{color:#c0392b;border-right:4px solid #c0392b;padding-right:10px;font-size:20px;margin:0 0 8px}
-ul{list-style:none;margin:0;padding:0}
-li.item{padding:10px 2px;border-bottom:1px solid #252525;display:block}
-.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.nm{font-size:17px;font-weight:600}.pr{color:#ffb300;font-weight:700;white-space:nowrap}
-.ds{color:#bbb;font-size:13px;margin-top:4px}
-.foot{position:fixed;bottom:0;right:0;left:0;background:#161616;border-top:1px solid #333;text-align:center;padding:10px;font-size:14px;color:#eee}
-nav{display:block;text-align:center;padding:10px 0 60px}
-nav a{color:#ffb300;font-size:15px}</style></head><body>
-<hdr><b>طاولة رقم ${escapeHtml(table.table_number)}</b>
-<div class="timer">الوقت المتبقي ${mm}:${ss < 10 ? '0' : ''}${ss}</div></hdr>
-${rows}
-<nav><a href="/menu?t=${encodeURIComponent(t)}&s=${session.id}">النسخة المحدثة (إن كانت تفتح)</a></nav>
-<div class="foot">سعر الوحدة · إذا انتهى الوقت نادِ الكاشير لتمديد الجلسة</div>
-</body></html>`);
-  } catch (e) {
-    console.error('menu-lite:', e.message);
-    res.send(entryForm);
-  }
-});
+ });
 
 app.use((req, res) => {
   const host = (req.headers.host || '').toLowerCase().split(':')[0];
   if (/^(192\.168|127\.|localhost|\[::1\])/.test(host)) return res.status(404).send('الصفحة غير موجودة');
-  res.redirect(302, `http://${detectLanIp()}${DISPLAY_MODE ? '/menu' : '/portal.html'}`);
+  res.redirect(302, `http://${detectLanIp()}/menu`);
 });
 
 app.use((err, req, res, next) => {
@@ -486,7 +340,6 @@ const mainServer = app.listen(PORT, '0.0.0.0', () => {
     }
   }
   console.log(`\n== ${brand.systemName} — ${brand.nameAr} — يعمل الآن ==`);
-  if (DISPLAY_MODE) console.log('** وضع منيو العرض مفعّل (DISPLAY_MODE=1): بدون طاولات/جلسات/أكواد');
   console.log(`محليًا: http://localhost:${PORT}`);
   console.log(`على الشبكة المحلية: ${baseUrl()}/admin/login.html`);
   console.log(`لوحة التحكم: /admin/login.html\n`);

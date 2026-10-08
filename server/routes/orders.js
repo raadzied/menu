@@ -1,5 +1,5 @@
-const express = require('express');
-console.log('[orders.js] loaded, bills route defined at line 119');
+﻿const express = require('express');
+console.log('[orders.js] loaded (counter mode — no tables/sessions)');
 const db = require('../db/database');
 const { requireAuth } = require('../middleware/auth');
 const { nowSql } = require('../utils');
@@ -11,59 +11,31 @@ const MAX_QTY_PER_LINE = 50;
 const MAX_NOTES_LEN = 300;
 const optStmt = db.prepare('SELECT * FROM item_options WHERE menu_item_id = ? AND id = ?');
 
-/* حماية وضع العرض من سبام الطلبات: 10 طلبات/دقيقة لكل جهاز (ذاكرة محلية) */
-const displayHits = new Map();
-function displayThrottle(req) {
-  if (displayHits.size > 2000) displayHits.clear();
+/* حماية من سبام الطلبات: 10 طلبات/دقيقة لكل جهاز (ذاكرة محلية) */
+const orderHits = new Map();
+function orderThrottle(req) {
+  if (orderHits.size > 2000) orderHits.clear();
   const key = req.ip || 'x';
   const now = Date.now();
-  const e = displayHits.get(key);
-  if (!e || now - e.start > 60000) { displayHits.set(key, { count: 1, start: now }); return true; }
+  const e = orderHits.get(key);
+  if (!e || now - e.start > 60000) { orderHits.set(key, { count: 1, start: now }); return true; }
   e.count += 1;
   return e.count <= 10;
 }
 
+/* طلب كاونتر: بدون طاولة وبدون جلسة — الزبون يستلم رقمًا ويدفع عند الكاشير */
 router.post('/', (req, res) => {
-  const { session_id, table_token, table_id, items, notes, display } = req.body || {};
-  const DISPLAY_MODE = process.env.DISPLAY_MODE === '1';
+  const { items, notes } = req.body || {};
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'بيانات الطلب غير مكتملة' });
   }
+  if (!orderThrottle(req)) return res.status(429).json({ error: 'طلبات كثيرة، انتظر دقيقة وحاول مجددًا' });
   if (items.length > MAX_LINES) return res.status(400).json({ error: 'عدد الأصناف في الطلب كبير جدًا' });
   let cleanNotes = null;
   if (notes != null && String(notes).trim() !== '') {
-    const n = String(notes).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
+const n = String(notes).split('').filter((ch) => { const c = ch.charCodeAt(0); return c >= 32 || c === 9 || c === 10 || c === 13; }).join('').trim();
     if (n.length > MAX_NOTES_LEN) return res.status(400).json({ error: 'الملاحظة أطول من الحد المسموح (300 حرف)' });
     cleanNotes = n || null;
-  }
-
-  let table = null;
-  let session = null;
-  if (DISPLAY_MODE && (display || (!session_id && table_id != null))) {
-    /* فرع العرض: طاولة مختارة ذاتيًا بدون جلسة — التأكيد والدفع عند الكاشير */
-    if (!displayThrottle(req)) return res.status(429).json({ error: 'طلبات كثيرة، انتظر دقيقة وحاول مجددًا' });
-    const tid = Number(table_id);
-    if (!Number.isInteger(tid) || tid <= 0) return res.status(400).json({ error: 'اختر رقم الطاولة أولًا' });
-    table = db.prepare('SELECT * FROM tables WHERE id = ?').get(tid);
-    if (!table) return res.status(404).json({ error: 'طاولة غير صالحة' });
-    if (table.status === 'disabled') return res.status(403).json({ error: 'هذه الطاولة مغلقة حاليًا — نادِ الكاشير' });
-  } else {
-    if (!session_id || !table_token) {
-      return res.status(400).json({ error: 'بيانات الطلب غير مكتملة' });
-    }
-    table = db.prepare('SELECT * FROM tables WHERE token = ?').get(String(table_token));
-    if (!table) return res.status(404).json({ error: 'طاولة غير صالحة' });
-
-    session = db.prepare('SELECT * FROM table_sessions WHERE id = ? AND table_id = ?').get(Number(session_id) || 0, table.id);
-    if (!session || session.status !== 'active') {
-      return res.status(403).json({ error: 'الجلسة غير نشطة، الرجاء إعادة مسح رمز QR' });
-    }
-    if (new Date(session.expires_at.replace(' ', 'T') + 'Z').getTime() < Date.now()) {
-      db.prepare(`UPDATE table_sessions SET status='expired', ended_at = ? WHERE id = ?`).run(nowSql(), session.id);
-      db.prepare(`UPDATE tables SET status='available' WHERE id = ?`).run(table.id);
-      require('../evict').evictSession(db, { tableId: table.id, sessionId: session.id, reason: 'expired_on_order' });
-      return res.status(403).json({ error: 'انتهت مدة الجلسة، الرجاء إعادة مسح رمز QR' });
-    }
   }
 
   const itemStmt = db.prepare('SELECT * FROM menu_items WHERE id = ? AND is_available = 1');
@@ -105,8 +77,8 @@ router.post('/', (req, res) => {
 
   const insertOrder = db.transaction(() => {
     const orderInfo = db.prepare(`
-      INSERT INTO orders (table_id, session_id, status, notes, total) VALUES (?,?,?,?,?)
-    `).run(table.id, session ? session.id : null, 'pending', cleanNotes, total);
+      INSERT INTO orders (status, notes, total) VALUES (?,?,?)
+    `).run('pending', cleanNotes, total);
     const insertLine = db.prepare(`
       INSERT INTO order_items (order_id, menu_item_id, item_name_ar, unit_price, quantity, options_json, line_total)
       VALUES (?,?,?,?,?,?,?)
@@ -130,109 +102,18 @@ router.get('/new-since/:id', requireAuth, (req, res) => {
   const sinceId = parseInt(req.params.id, 10);
   if (Number.isNaN(sinceId) || sinceId < 0) return res.status(400).json({ error: 'معرف غير صحيح' });
   const rows = db.prepare(`
-    SELECT o.id, o.total, o.created_at, o.notes, t.table_number, t.label AS table_label
-    FROM orders o JOIN tables t ON t.id = o.table_id
-    WHERE o.id > ? AND o.status = 'pending'
-    ORDER BY o.id ASC
+    SELECT id, total, created_at, notes FROM orders
+    WHERE id > ? AND status = 'pending'
+    ORDER BY id ASC
   `).all(sinceId);
   res.json(rows);
 });
 
-router.get('/bills/session/:id', requireAuth, (req, res) => {
-  const session = db.prepare(`
-    SELECT s.*, t.label, t.table_number FROM table_sessions s JOIN tables t ON t.id = s.table_id
-    WHERE s.id = ?
-  `).get(req.params.id);
-  if (!session) return res.status(404).json({ error: 'الجلسة غير موجودة' });
-
-  const orders = db.prepare(`
-    SELECT * FROM orders WHERE session_id = ? AND status != 'cancelled' ORDER BY id ASC
-  `).all(session.id);
-
-  const itemStmt = db.prepare('SELECT * FROM order_items WHERE order_id = ?');
-  const merged = {};
-  let grandTotal = 0;
-  for (const o of orders) {
-    o.items = itemStmt.all(o.id);
-    for (const it of o.items) {
-      const key = `${it.menu_item_id}|${it.unit_price}`;
-      if (!merged[key]) {
-        merged[key] = { menu_item_id: it.menu_item_id, item_name_ar: it.item_name_ar, unit_price: it.unit_price, quantity: 0, line_total: 0 };
-      }
-      merged[key].quantity += it.quantity;
-      merged[key].line_total += it.line_total;
-      grandTotal += it.line_total;
-    }
-  }
-  const mergedItems = Object.values(merged).sort((a, b) => a.menu_item_id - b.menu_item_id);
-
-  res.json({
-    session,
-    orders,
-    merged_items: mergedItems,
-    total: grandTotal,
-    orders_count: orders.length,
-  });
-});
-
-router.get('/bills', requireAuth, (req, res) => {
-  const sessions = db.prepare(`
-    SELECT s.id AS session_id, s.table_id, s.started_at, s.expires_at, s.duration_minutes, t.label, t.table_number
-    FROM table_sessions s JOIN tables t ON t.id = s.table_id
-    WHERE s.status = 'active'
-    ORDER BY s.expires_at ASC
-  `).all();
-
-  const orderStmt = db.prepare(`SELECT * FROM orders WHERE session_id = ? AND status != 'cancelled' ORDER BY id ASC`);
-  const itemStmt = db.prepare('SELECT * FROM order_items WHERE order_id = ?');
-  const now = Date.now();
-  const bills = [];
-
-  for (const s of sessions) {
-    const expiresMs = new Date(s.expires_at.replace(' ', 'T') + 'Z').getTime();
-    const remaining = Math.max(0, Math.round((expiresMs - now) / 1000));
-    const orders = orderStmt.all(s.session_id);
-    const merged = {};
-    let total = 0;
-    for (const o of orders) {
-      o.items = itemStmt.all(o.id);
-      for (const it of o.items) {
-        const key = `${it.menu_item_id}|${it.unit_price}`;
-        if (!merged[key]) {
-          merged[key] = { menu_item_id: it.menu_item_id, item_name_ar: it.item_name_ar, unit_price: it.unit_price, quantity: 0, line_total: 0 };
-        }
-        merged[key].quantity += it.quantity;
-        merged[key].line_total += it.line_total;
-        total += it.line_total;
-      }
-    }
-    bills.push({
-      session_id: s.session_id,
-      table_id: s.table_id,
-      label: s.label,
-      table_number: s.table_number,
-      remaining_seconds: remaining,
-      expiring_soon: remaining <= 300,
-      orders_count: orders.length,
-      items: Object.values(merged).sort((a, b) => a.menu_item_id - b.menu_item_id),
-      total,
-    });
-  }
-
-  res.json(bills);
-});
-
+/* تتبع عام برقم الطلب (شاشة كاونتر — لا بيانات حساسة تُعرض) */
 router.get('/:id/track', (req, res) => {
-  const { session_id, table_token } = req.query;
-  if (!session_id || !table_token) return res.status(400).json({ error: 'بيانات غير كافية' });
-  const table = db.prepare('SELECT * FROM tables WHERE token = ?').get(String(table_token));
-  if (!table) return res.status(404).json({ error: 'الطلب غير موجود' });
-
   const order = db.prepare(`
-    SELECT id, status, total, created_at FROM orders
-    WHERE id = ? AND session_id = ? AND table_id = ?
-  `).get(req.params.id, Number(session_id) || 0, table.id);
-
+    SELECT id, status, total, created_at FROM orders WHERE id = ?
+  `).get(req.params.id);
   if (!order) return res.status(404).json({ error: 'الطلب غير موجود' });
   res.json(order);
 });
@@ -242,13 +123,11 @@ router.get('/', requireAuth, (req, res) => {
   let rows;
   if (status) {
     rows = db.prepare(`
-      SELECT o.*, t.table_number FROM orders o JOIN tables t ON t.id = o.table_id
-      WHERE o.status = ? ORDER BY o.created_at DESC
+      SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC
     `).all(status);
   } else {
     rows = db.prepare(`
-      SELECT o.*, t.table_number FROM orders o JOIN tables t ON t.id = o.table_id
-      ORDER BY o.created_at DESC LIMIT 200
+      SELECT * FROM orders ORDER BY created_at DESC LIMIT 200
     `).all();
   }
   const itemsStmt = db.prepare('SELECT * FROM order_items WHERE order_id = ?');

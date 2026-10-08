@@ -10,27 +10,6 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS tables (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    table_number INTEGER NOT NULL UNIQUE,
-    label TEXT,
-    token TEXT NOT NULL UNIQUE,
-    session_minutes INTEGER NOT NULL DEFAULT 20,
-    status TEXT NOT NULL CHECK (status IN ('available','occupied','disabled')) DEFAULT 'available',
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS table_sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    table_id INTEGER NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
-    started_at TEXT NOT NULL DEFAULT (datetime('now')),
-    duration_minutes INTEGER NOT NULL,
-    expires_at TEXT NOT NULL,
-    ended_at TEXT,
-    status TEXT NOT NULL CHECK (status IN ('active','expired','closed')) DEFAULT 'active',
-    extended_by_minutes INTEGER NOT NULL DEFAULT 0
-);
-
 CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name_ar TEXT NOT NULL,
@@ -64,8 +43,6 @@ CREATE TABLE IF NOT EXISTS item_options (
 
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    table_id INTEGER NOT NULL REFERENCES tables(id),
-    session_id INTEGER REFERENCES table_sessions(id),
     status TEXT NOT NULL CHECK (status IN ('pending','confirmed','preparing','served','cancelled')) DEFAULT 'pending',
     notes TEXT,
     total REAL NOT NULL DEFAULT 0,
@@ -92,8 +69,5 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_orders_table ON orders(table_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
-CREATE INDEX IF NOT EXISTS idx_sessions_table ON table_sessions(table_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_status ON table_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_items_category ON menu_items(category_id);

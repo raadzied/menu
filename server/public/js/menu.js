@@ -42,19 +42,10 @@ function addRipple(el, e) {
 }
 
 const app = document.getElementById('app');
-const params = new URLSearchParams(window.location.search);
-const tableToken = params.get('t');
-const claimedSession = params.get('s');
-/* وضع العرض المؤقت: بدون توكن/جلسة — الزبون يختار طاولته بنفسه (يُحقن من السيرفر) */
-const DISPLAY_MODE = window.__DISPLAY_MODE__ === true;
-let displayTable = null;
 
-let sessionInfo = null;
 let categories = [];
 let activeCatId = null;
 let cart = {};
-let countdownTimer = null;
-let pollTimer = null;
 
 function renderState(title, desc, back = false) {
   const backBtn = back === 'portal'
@@ -70,131 +61,29 @@ function renderState(title, desc, back = false) {
   `;
 }
 
-function renderJoin() {
-  app.innerHTML = `
-    <div class="state-screen">
-      <div class="state-screen__badge"></div>
-      <div class="state-screen__title">كود الطاولة</div>
-      <div class="state-screen__desc">امسح رمز QR على طاولتك، أو ادخل الكود المكوّن من 6 أرقام المطبوع على بطاقتها:</div>
-      <input id="joinCode" type="text" inputmode="numeric" maxlength="8" autocomplete="off"
-        placeholder="0 0 0 0 0 0" style="width:min(72vw,240px);text-align:center;direction:ltr;font-family:var(--font-mono);font-weight:700;font-size:26px;letter-spacing:8px;padding:12px 10px 12px 18px;border-radius:14px;border:1px solid var(--dark-line);background:var(--dark-800);color:var(--paper-000);">
-      <div id="joinErr" style="color:#f0a794;font-size:12px;min-height:18px;"></div>
-      <button class="add-btn" id="joinBtn" style="max-width:240px;width:min(72vw,240px)">دخول</button>
-    </div>
-  `;
-  const input = document.getElementById('joinCode');
-  const btn = document.getElementById('joinBtn');
-  const errEl = document.getElementById('joinErr');
-  const submit = () => {
-    const code = (input.value || '').replace(/\D/g, '');
-    errEl.textContent = '';
-    if (code.length !== 6) { errEl.textContent = 'الكود 6 أرقام'; return; }
-    btn.disabled = true;
-    fetch('/api/session/redeem', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
-    }).then((r) => r.json().then((d) => ({ ok: r.ok, d }))).then((x) => {
-      btn.disabled = false;
-      if (x.ok && x.d.menu_url) { location.href = x.d.menu_url; return; }
-      errEl.textContent = (x.d && x.d.error) || 'تعذر التحقق — نادِ الكاشير';
-      input.select();
-    }).catch(() => { btn.disabled = false; errEl.textContent = 'تعذر الاتصال بالخادم'; });
-  };
-  btn.addEventListener('click', submit);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-  input.focus();
-}
-
-/* ===== وضع العرض: اختيار الطاولة ذاتيًا ===== */
-function renderTablePicker(tables) {
-  app.innerHTML = `
-    <div class="state-screen">
-      <div class="state-screen__badge"></div>
-      <div class="state-screen__title">اختر رقم طاولتك</div>
-      <div class="state-screen__desc">اجلس على طاولتك ثم اضغط رقمها — وسيصل طلبك للكاشير باسمها</div>
-      <div id="tableGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:320px;margin-top:8px;"></div>
-    </div>
-  `;
-  const grid = document.getElementById('tableGrid');
-  tables.forEach((t) => {
-    const b = document.createElement('button');
-    b.className = 'add-btn';
-    b.style.maxWidth = 'none';
-    b.textContent = 'طاولة ' + t.table_number;
-    bindTap(b, () => {
-      displayTable = t;
-      sessionInfo = { table_number: t.table_number, display: true };
-      renderMenu();
-      const bar = document.querySelector('.session-bar');
-      if (bar) bar.style.display = 'none';
-      const heading = document.getElementById('categoryHeading');
-      if (heading && !heading.textContent) heading.textContent = '';
-    });
-    grid.appendChild(b);
-  });
-}
-
-function renderDisplayConfirmation(orderId) {
-  const tn = displayTable ? displayTable.table_number : '';
+/* شاشة تأكيد طلب الكاونتر: الرقم + التوجه للكاشير */
+function renderConfirmation(orderId) {
   app.innerHTML = `
     <div class="state-screen">
       <div class="state-screen__badge"></div>
       <div class="state-screen__title">طلبك رقم <span style="font-size:34px">${orderId}</span></div>
-      <div class="state-screen__desc">طاولة ${tn} — توجه للكاشير للتأكيد والدفع</div>
+      <div class="state-screen__desc">توجه للكاشير للتأكيد والدفع — بالعافية!</div>
       <button class="add-btn" id="newOrderBtn" style="max-width:320px">طلب جديد</button>
     </div>
   `;
   bindTap(document.getElementById('newOrderBtn'), () => {
     cart = {};
     renderMenu();
-    const bar = document.querySelector('.session-bar');
-    if (bar) bar.style.display = 'none';
   });
 }
 
-async function initDisplay() {
+async function init() {
   renderState('جاري التحضير', 'يتم الآن تجهيز قائمة الطعام...');
   try {
-    const res = await fetch('/api/tables/public');
-    const tables = await res.json();
-    if (!res.ok || !Array.isArray(tables) || !tables.length) {
-      renderState('لا توجد طاولات متاحة', 'نادِ الكاشير من فضلك.');
-      return;
-    }
-    const catRes = await fetch('/api/menu/public');
-    categories = await catRes.json();
-    activeCatId = categories.length ? categories[0].id : null;
-    renderTablePicker(tables);
-  } catch (e) {
-    renderState('لا يوجد اتصال بالخادم', 'تأكد من اتصال جهازك بشبكة المطعم المحلية (واي فاي) وحاول مرة أخرى.');
-  }
-}
-
-async function init() {
-  if (DISPLAY_MODE) {
-    initDisplay();
-    return;
-  }
-  if (!tableToken) {
-    renderJoin();
-    return;
-  }
-  renderState('جاري التحضير', 'يتم الآن تجهيز قائمة الطعام الخاصة بطاولتك...');
-  try {
-    const checkUrl = `/api/session/check?t=${encodeURIComponent(tableToken)}` +
-      (claimedSession ? `&s=${encodeURIComponent(claimedSession)}` : '');
-    const res = await fetch(checkUrl);
-    const data = await res.json();
-    if (res.status === 410 || data.status === 'ended') { location.replace('/portal.html'); return; }
-    if (!res.ok) { renderState('تعذر فتح المنيو', data.error || 'حدث خطأ غير متوقع.'); return; }
-    sessionInfo = data;
-    try { history.replaceState(null, '', `/menu?t=${encodeURIComponent(tableToken)}&s=${encodeURIComponent(sessionInfo.session_id)}`); } catch (_) {}
-    if (data.card_code) { try { localStorage.setItem('{{SLUG}}_code', data.card_code); } catch (_) {} }
     const catRes = await fetch('/api/menu/public');
     categories = await catRes.json();
     activeCatId = categories.length ? categories[0].id : null;
     renderMenu();
-    startCountdown();
-    startPolling();
   } catch (e) {
     renderState('لا يوجد اتصال بالخادم', 'تأكد من اتصال جهازك بشبكة المطعم المحلية (واي فاي) وحاول مرة أخرى.');
   }
@@ -211,13 +100,9 @@ function renderMenu() {
           <div class="menu-header__title">{{NAME_AR}}</div>
         </div>
         <div class="menu-header__actions">
-          <div class="table-pill">طاولة <strong>${sessionInfo.table_number}</strong>${sessionInfo.devices > 1 ? ` <span style="opacity:0.75">· ${sessionInfo.devices} أجهزة</span>` : ''}</div>
+          <div class="table-pill">اطلب واستلم <strong>رقمك</strong></div>
         </div>
       </header>
-      <div class="session-bar">
-        <div class="session-bar__track"><div class="session-bar__fill" id="sessionFill"></div></div>
-        <div class="session-bar__time" id="sessionTime">--:--</div>
-      </div>
       <div class="category-heading" id="categoryHeading"></div>
 
       <div class="category-view" id="categoryView"></div>
@@ -630,14 +515,11 @@ async function submitOrder() {
   btn.textContent = 'جاري إرسال الطلب...';
   const items = cartArray().map((l) => ({ menu_item_id: l.item.id, quantity: l.qty }));
   const notes = document.getElementById('orderNotes').value.trim();
-  const payload = DISPLAY_MODE
-    ? { display: true, table_id: displayTable ? displayTable.id : null, items, notes: notes || undefined }
-    : { session_id: sessionInfo.session_id, table_token: tableToken, items, notes: notes || undefined };
   try {
     const res = await fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ items, notes: notes || undefined }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -648,62 +530,12 @@ async function submitOrder() {
     }
     cart = {};
     toggleDrawer(false);
-    stopTimers();
-    if (DISPLAY_MODE) {
-      renderDisplayConfirmation(data.order_id);
-      return;
-    }
-    renderState('تم استلام طلبك', 'وصل طلبك إلى الكاشير وسيتم تجهيزه قريبًا. شكرًا لزيارتك {{NAME_AR}}.', true);
+    renderConfirmation(data.order_id);
   } catch (e) {
     alert('تعذر الاتصال بالخادم، تحقق من اتصال الشبكة المحلية');
     btn.disabled = false;
     btn.textContent = 'إرسال الطلب إلى الكاشير';
   }
-}
-
-function startCountdown() { updateCountdown(); countdownTimer = setInterval(updateCountdown, 1000); }
-
-function updateCountdown() {
-  const fill = document.getElementById('sessionFill');
-  const timeEl = document.getElementById('sessionTime');
-  if (!fill || !timeEl || !sessionInfo) return;
-  const expires = new Date(sessionInfo.expires_at.replace(' ', 'T') + 'Z').getTime();
-  const remainingMs = expires - Date.now();
-  if (remainingMs <= 0) {
-    stopTimers();
-    renderState('انتهت مدة الجلسة', 'انتهى الوقت المخصص لتصفح المنيو. ابدأ جلسة جديدة من صفحة الدخول أو امسح رمز QR على طاولتك.', 'portal');
-    return;
-  }
-  const totalMinutes = sessionInfo.total_minutes || sessionInfo.duration_minutes || 20;
-  const totalMs = totalMinutes * 60 * 1000;
-  const pct = Math.max(0, Math.min(100, (remainingMs / totalMs) * 100));
-  fill.style.width = `${pct}%`;
-  fill.classList.toggle('warn', pct <= 40 && pct > 15);
-  fill.classList.toggle('danger', pct <= 15);
-  const m = Math.floor(remainingMs / 60000);
-  const s = Math.floor((remainingMs % 60000) / 1000);
-  timeEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-function startPolling() {
-  pollTimer = setInterval(async () => {
-    try {
-      const res = await fetch(`/api/session/status/${sessionInfo.session_id}?t=${encodeURIComponent(tableToken)}`);
-      const data = await res.json();
-      if (data.status === 'expired' || data.status === 'closed') {
-        stopTimers();
-        renderState('انتهت الجلسة', 'أنهى الكاشير هذه الجلسة أو انتهت مدتها. ابدأ جلسة جديدة من صفحة الدخول.', 'portal');
-        return;
-      }
-      if (data.expires_at !== sessionInfo.expires_at) sessionInfo.expires_at = data.expires_at;
-      if (data.total_minutes) sessionInfo.total_minutes = data.total_minutes;
-    } catch (e) { /* تجاهل أخطاء الشبكة المؤقتة */ }
-  }, 15000);
-}
-
-function stopTimers() {
-  if (countdownTimer) clearInterval(countdownTimer);
-  if (pollTimer) clearInterval(pollTimer);
 }
 
 /* ===== مؤثرات عند التنقّل والضغط ===== */

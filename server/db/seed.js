@@ -20,23 +20,6 @@ function run() {
     console.log('يوجد مستخدمون بالفعل، تم تخطي إنشاء حساب المدير.');
   }
 
-  const tableCount = db.prepare('SELECT COUNT(*) AS c FROM tables').get().c;
-  if (tableCount === 0) {
-    const defaultMinutes = parseInt(process.env.DEFAULT_TABLE_SESSION_MINUTES || '20', 10);
-    const insertTable = db.prepare(
-      `INSERT INTO tables (table_number, label, token, session_minutes) VALUES (?,?,?,?)`
-    );
-    const insertMany = db.transaction((count) => {
-      for (let i = 1; i <= count; i++) {
-        insertTable.run(i, `طاولة ${i}`, makeToken(), defaultMinutes);
-      }
-    });
-    insertMany(15);
-    console.log('تم إنشاء 15 طاولة افتراضية.');
-  } else {
-    console.log('توجد طاولات بالفعل، تم تخطي إنشاء الطاولات.');
-  }
-
   const catCount = db.prepare('SELECT COUNT(*) AS c FROM categories').get().c;
   if (!brand.demoMenu) {
     console.log('الهوية بلا منيو تجريبي (demo_menu=false) — تبدأ بقوائم فارغة، أضف الأصناف من لوحة التحكم.');

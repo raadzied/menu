@@ -1,5 +1,5 @@
-const viewTitles = { orders: 'الطلبات والفواتير', tables: 'الطاولات والجلسات', menu: 'إدارة المنيو', overview: 'التقارير', users: 'المستخدمون' };
-const viewRenderers = { orders: renderOrders, tables: renderTables, menu: renderMenuAdmin, overview: renderOverview, users: renderUsers };
+const viewTitles = { orders: 'الطلبات', menu: 'إدارة المنيو', overview: 'التقارير', users: 'المستخدمون' };
+const viewRenderers = { orders: renderOrders, menu: renderMenuAdmin, overview: renderOverview, users: renderUsers };
 let currentUser = null;
 
 async function boot() {
@@ -34,7 +34,7 @@ function switchView(view) {
 async function updateNavBadges() {
   try {
     const s = await Api.get('/api/dashboard/summary');
-    setBadge('badgeOrders', s.pending_orders + s.active_tables);
+    setBadge('badgeOrders', s.pending_orders);
   } catch (e) {}
 }
 

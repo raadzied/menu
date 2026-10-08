@@ -4,17 +4,11 @@ let ordersRefreshTimer = null;
 async function renderOrders(root) {
   root.innerHTML = `
     <div class="view-section">
-      <div class="view-section__title">فواتير الطاولات النشطة</div>
-      <div id="billsPanel"><div class="empty-state">جاري تحميل الفواتير...</div></div>
-    </div>
-    <div class="view-section">
-      <div class="view-section__title">الطلبات</div>
+      <div class="view-section__title">طلبات الكاونتر</div>
       <div class="chips" id="orderFilters"></div>
       <div id="ordersPanel"><div class="empty-state">جاري التحميل...</div></div>
     </div>
   `;
-  loadBills();
-  ensureBillsRefresh();
   await loadOrders();
   if (ordersRefreshTimer) clearInterval(ordersRefreshTimer);
   ordersRefreshTimer = setInterval(() => {
@@ -79,8 +73,8 @@ function orderCard(o) {
   return `
     <div class="order-card st-${o.status}">
       <div class="order-card__head">
-        <span class="order-card__table">طاولة <span class="num">${o.table_number}</span></span>
-        <span class="order-card__meta"><span class="num">#${o.id}</span> · <span class="num">${time}</span></span>
+        <span class="order-card__table">طلب <span class="num">#${o.id}</span></span>
+        <span class="order-card__meta"><span class="num">${time}</span></span>
       </div>
       <div class="order-card__items">${items}</div>
       ${o.notes ? `<div class="order-card__note">ملاحظة: ${esc(o.notes)}</div>` : ''}

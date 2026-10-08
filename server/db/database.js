@@ -45,50 +45,30 @@ db.transaction = function (fn) {
   };
 };
 
-/* ===== ترحيلات آمنة عند الإقلاع (idempotent) ===== */
-const CODE_ALPHABET = '0123456789';
-const CARD_CODE_LEN = 6;
-
-function genCardCode(existing) {
-  let code;
-  do {
-    code = '';
-    for (let i = 0; i < CARD_CODE_LEN; i++) code += crypto.randomInt(0, CODE_ALPHABET.length).toString();
-  } while (existing.has(code));
-  existing.add(code);
-  return code;
-}
-
+/* ===== ترحيل إزالة نظام الطاولات (idempotent) =====
+   قرار الإدارة: حذف الطاولات/الجلسات/الأكواد نهائيًا (تُعاد في تحديث لاحق —
+   النسخة الكاملة محفوظة في فرع git المستقل backup-full-tables-system).
+   القواعد الحالية خالية من الطلبات، فيُسقط الهيكل القديم مباشرة. */
 function migrate() {
-  const cols = db.prepare('PRAGMA table_info(tables)').all().map((c) => c.name);
-  if (!cols.includes('card_code')) db.exec('ALTER TABLE tables ADD COLUMN card_code TEXT');
-  if (!cols.includes('evict_until')) db.exec('ALTER TABLE tables ADD COLUMN evict_until TEXT');
-
-  const needsRegen = db.prepare(
-    "SELECT COUNT(*) AS c FROM tables WHERE card_code IS NULL OR length(card_code) != 6 OR card_code GLOB '*[^0-9]*'"
-  ).get().c;
-  if (needsRegen > 0) {
-    const used = new Set();
-    for (const row of db.prepare('SELECT id FROM tables').all()) {
-      db.prepare('UPDATE tables SET card_code = ? WHERE id = ?').run(genCardCode(used), row.id);
-    }
+  db.exec('DROP TABLE IF EXISTS session_devices');
+  db.exec('DROP TABLE IF EXISTS redeem_guard');
+  db.exec('DROP TABLE IF EXISTS hotspot_clients');
+  db.exec('DROP TABLE IF EXISTS table_sessions');
+  db.exec('DROP TABLE IF EXISTS tables');
+  db.exec('DROP INDEX IF EXISTS idx_orders_table');
+  db.exec('DROP INDEX IF EXISTS idx_sessions_table');
+  db.exec('DROP INDEX IF EXISTS idx_sessions_status');
+  db.exec('DROP INDEX IF EXISTS idx_tables_card_code');
+  db.exec('DROP INDEX IF EXISTS idx_one_active_per_table');
+  // إسقاط عمودي table_id وsession_id من الطلبات (مراجع لجداول محذوفة —
+  // بقاؤهما يكسر أي INSERT لأن FK يتطلب وجود الجدول الأب)
+  try {
+    const cols = db.prepare('PRAGMA table_info(orders)').all().map((c) => c.name);
+    if (cols.includes('table_id')) db.exec('ALTER TABLE orders DROP COLUMN table_id');
+    if (cols.includes('session_id')) db.exec('ALTER TABLE orders DROP COLUMN session_id');
+  } catch (e) {
+    console.error('تحذير: تعذر إسقاط أعمدة الطلبات:', e.message);
   }
-  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tables_card_code ON tables(card_code)');
-
-  db.exec(`CREATE TABLE IF NOT EXISTS session_devices (
-    session_id INTEGER NOT NULL REFERENCES table_sessions(id) ON DELETE CASCADE,
-    ip TEXT NOT NULL,
-    first_seen TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (session_id, ip)
-  )`);
-
-  // إغلاق أي جلسات active مكررة لطاولة (إبقاء الأحدث) ثم فرض قيد الفريدة
-  db.exec(`
-    UPDATE table_sessions SET status='closed', ended_at = datetime('now')
-    WHERE status='active' AND id NOT IN (
-      SELECT MAX(id) FROM table_sessions WHERE status='active' GROUP BY table_id
-    )`);
-  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_per_table ON table_sessions(table_id) WHERE status='active'`);
 }
 
 try {

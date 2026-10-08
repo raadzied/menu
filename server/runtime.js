@@ -58,6 +58,8 @@ if (PACKAGED) {
       'ADMIN_USERNAME=admin',
       `ADMIN_PASSWORD=${adminPassword}`,
       'DEFAULT_TABLE_SESSION_MINUTES=20',
+      '# وضع منيو العرض المؤقت (1=تفعيل: بدون طاولات/جلسات/أكواد — 0=النظام الكامل)',
+      'DISPLAY_MODE=0',
       'WIFI_SSID=',
       'WIFI_PASSWORD=',
       'SESSION_RECONNECT_SECONDS=4',

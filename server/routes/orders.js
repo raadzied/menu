@@ -11,9 +11,22 @@ const MAX_QTY_PER_LINE = 50;
 const MAX_NOTES_LEN = 300;
 const optStmt = db.prepare('SELECT * FROM item_options WHERE menu_item_id = ? AND id = ?');
 
+/* حماية وضع العرض من سبام الطلبات: 10 طلبات/دقيقة لكل جهاز (ذاكرة محلية) */
+const displayHits = new Map();
+function displayThrottle(req) {
+  if (displayHits.size > 2000) displayHits.clear();
+  const key = req.ip || 'x';
+  const now = Date.now();
+  const e = displayHits.get(key);
+  if (!e || now - e.start > 60000) { displayHits.set(key, { count: 1, start: now }); return true; }
+  e.count += 1;
+  return e.count <= 10;
+}
+
 router.post('/', (req, res) => {
-  const { session_id, table_token, items, notes } = req.body || {};
-  if (!session_id || !table_token || !Array.isArray(items) || items.length === 0) {
+  const { session_id, table_token, table_id, items, notes, display } = req.body || {};
+  const DISPLAY_MODE = process.env.DISPLAY_MODE === '1';
+  if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'بيانات الطلب غير مكتملة' });
   }
   if (items.length > MAX_LINES) return res.status(400).json({ error: 'عدد الأصناف في الطلب كبير جدًا' });
@@ -23,18 +36,34 @@ router.post('/', (req, res) => {
     if (n.length > MAX_NOTES_LEN) return res.status(400).json({ error: 'الملاحظة أطول من الحد المسموح (300 حرف)' });
     cleanNotes = n || null;
   }
-  const table = db.prepare('SELECT * FROM tables WHERE token = ?').get(String(table_token));
-  if (!table) return res.status(404).json({ error: 'طاولة غير صالحة' });
 
-  const session = db.prepare('SELECT * FROM table_sessions WHERE id = ? AND table_id = ?').get(Number(session_id) || 0, table.id);
-  if (!session || session.status !== 'active') {
-    return res.status(403).json({ error: 'الجلسة غير نشطة، الرجاء إعادة مسح رمز QR' });
-  }
-  if (new Date(session.expires_at.replace(' ', 'T') + 'Z').getTime() < Date.now()) {
-    db.prepare(`UPDATE table_sessions SET status='expired', ended_at = ? WHERE id = ?`).run(nowSql(), session.id);
-    db.prepare(`UPDATE tables SET status='available' WHERE id = ?`).run(table.id);
-    require('../evict').evictSession(db, { tableId: table.id, sessionId: session.id, reason: 'expired_on_order' });
-    return res.status(403).json({ error: 'انتهت مدة الجلسة، الرجاء إعادة مسح رمز QR' });
+  let table = null;
+  let session = null;
+  if (DISPLAY_MODE && (display || (!session_id && table_id != null))) {
+    /* فرع العرض: طاولة مختارة ذاتيًا بدون جلسة — التأكيد والدفع عند الكاشير */
+    if (!displayThrottle(req)) return res.status(429).json({ error: 'طلبات كثيرة، انتظر دقيقة وحاول مجددًا' });
+    const tid = Number(table_id);
+    if (!Number.isInteger(tid) || tid <= 0) return res.status(400).json({ error: 'اختر رقم الطاولة أولًا' });
+    table = db.prepare('SELECT * FROM tables WHERE id = ?').get(tid);
+    if (!table) return res.status(404).json({ error: 'طاولة غير صالحة' });
+    if (table.status === 'disabled') return res.status(403).json({ error: 'هذه الطاولة مغلقة حاليًا — نادِ الكاشير' });
+  } else {
+    if (!session_id || !table_token) {
+      return res.status(400).json({ error: 'بيانات الطلب غير مكتملة' });
+    }
+    table = db.prepare('SELECT * FROM tables WHERE token = ?').get(String(table_token));
+    if (!table) return res.status(404).json({ error: 'طاولة غير صالحة' });
+
+    session = db.prepare('SELECT * FROM table_sessions WHERE id = ? AND table_id = ?').get(Number(session_id) || 0, table.id);
+    if (!session || session.status !== 'active') {
+      return res.status(403).json({ error: 'الجلسة غير نشطة، الرجاء إعادة مسح رمز QR' });
+    }
+    if (new Date(session.expires_at.replace(' ', 'T') + 'Z').getTime() < Date.now()) {
+      db.prepare(`UPDATE table_sessions SET status='expired', ended_at = ? WHERE id = ?`).run(nowSql(), session.id);
+      db.prepare(`UPDATE tables SET status='available' WHERE id = ?`).run(table.id);
+      require('../evict').evictSession(db, { tableId: table.id, sessionId: session.id, reason: 'expired_on_order' });
+      return res.status(403).json({ error: 'انتهت مدة الجلسة، الرجاء إعادة مسح رمز QR' });
+    }
   }
 
   const itemStmt = db.prepare('SELECT * FROM menu_items WHERE id = ? AND is_available = 1');
@@ -77,7 +106,7 @@ router.post('/', (req, res) => {
   const insertOrder = db.transaction(() => {
     const orderInfo = db.prepare(`
       INSERT INTO orders (table_id, session_id, status, notes, total) VALUES (?,?,?,?,?)
-    `).run(table.id, session.id, 'pending', cleanNotes, total);
+    `).run(table.id, session ? session.id : null, 'pending', cleanNotes, total);
     const insertLine = db.prepare(`
       INSERT INTO order_items (order_id, menu_item_id, item_name_ar, unit_price, quantity, options_json, line_total)
       VALUES (?,?,?,?,?,?,?)

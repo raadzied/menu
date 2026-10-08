@@ -24,6 +24,9 @@ const { brandStatic } = require('./brandify');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+/* وضع منيو العرض المؤقت: بدون طاولات/جلسات/أكواد — الزبون يختار طاولته بنفسه
+   ويستلم رقم طلب للدفع عند الكاشير. إطفاء المفتاح يعيد النظام الكامل فورًا. */
+const DISPLAY_MODE = process.env.DISPLAY_MODE === '1';
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -95,7 +98,8 @@ function isProbe(req) {
 app.use((req, res, next) => {
   const hostHeader = (req.headers.host || '').toLowerCase().split(':')[0];
   if (hostHeader === 'menu.lan') {
-    return res.redirect(301, `http://${detectLanIp()}${req.originalUrl === '/' ? '/portal.html' : req.originalUrl}`);
+    const landing = DISPLAY_MODE ? '/menu' : '/portal.html';
+    return res.redirect(301, `http://${detectLanIp()}${req.originalUrl === '/' ? landing : req.originalUrl}`);
   }
   next();
 });
@@ -108,6 +112,10 @@ app.use((req, res, next) => {
   // منع الكاش تماماً: الأجهزة الحديثة تكره الاستجابات المخزنة للـ probes
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.set('Pragma', 'no-cache');
+  /* وضع العرض: كل الفحوص تتحول مباشرة للمنيو (خطوة واحدة بدل بوابة ثم منيو) */
+  if (DISPLAY_MODE) {
+    return res.redirect(302, `http://${detectLanIp()}/menu`);
+  }
   /* أندرويد/ويندوز وسامسونج الحديثة تُحفَّز بـ 302 نحو البوابة */
   if (['/redirect', '/status.txt', '/generate_204', '/gen_204', '/ncsi.txt', '/connecttest.txt', '/success.txt', '/canonical/index.html', '/canonical.html', '/library/test/success.html'].includes(p)) {
     return res.redirect(302, portal);
@@ -156,8 +164,11 @@ const MENU_UA_GUARD = `
 `;
 
 app.get('/menu', (req, res) => {
-  res.type('html').send(menuTemplate.replace('<link rel="stylesheet" href="/css/menu.css">',
-    MENU_UA_GUARD + '<link rel="stylesheet" href="/css/menu.css">'));
+  let html = menuTemplate.replace('<link rel="stylesheet" href="/css/menu.css">',
+    MENU_UA_GUARD + '<link rel="stylesheet" href="/css/menu.css">');
+  /* وضع العرض: إبلاغ الواجهة لتتجاوز بوابة الكود وتعرض اختيار الطاولة */
+  if (DISPLAY_MODE) html = html.replace('<div id="app"></div>', '<script>window.__DISPLAY_MODE__=true;</script><div id="app"></div>');
+  res.type('html').send(html);
 });
 
 function expireOverdueSessions() {
@@ -232,6 +243,14 @@ app.use((req, res, next) => {
   next();
 });
 
+/* وضع العرض: صفحة البوابة تحوّل مباشرة للمنيو (قبل التقديم الثابت) */
+if (DISPLAY_MODE) {
+  app.use((req, res, next) => {
+    if (req.path === '/portal.html' || req.path === '/portal') return res.redirect(302, '/menu');
+    next();
+  });
+}
+
 /* مجلد Assets قابل للكتابة في وضع exe — يقدَّم قبل الملفات المضمونة */
 if (process.env.ASSETS_DIR) {
   app.use('/assets', express.static(process.env.ASSETS_DIR, { maxAge: '1d' }));
@@ -277,6 +296,8 @@ function renderPortal(errorMsg) {
     `<div class="portal-err" id="codeError">${String(errorMsg).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`);
 }
 app.post('/enter', strictLimiter, (req, res) => {
+  /* وضع العرض: لا أكواد — أي إرسال يذهب للمنيو مباشرة */
+  if (DISPLAY_MODE) return res.redirect(302, '/menu');
   const r = sessionPublicRoutes.redeemCode((req.body || {}).code, req);
   if (r.ok) return res.redirect(302, r.menu_url);
   res.status(200).type('html').send(renderPortal(r.error));
@@ -289,6 +310,45 @@ const escapeHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').repl
 app.get('/menu-lite', strictLimiter, (req, res) => {
   const t = String(req.query.t || '').replace(/[^A-Za-z0-9_-]/g, '');
   res.type('html');
+  /* وضع العرض: نسخة خام للهواتف القديمة بلا كود وبلا جلسة — للطلب: جهاز حديث أو الكاشير */
+  if (DISPLAY_MODE) {
+    try {
+      const categories = db.prepare('SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order').all();
+      const itemsStmt = db.prepare('SELECT * FROM menu_items WHERE category_id = ? AND is_available = 1 ORDER BY sort_order');
+      const rows = categories.map((c) => {
+        const items = itemsStmt.all(c.id);
+        const lis = items.map((it) => `
+        <li class="item">
+          <div class="row"><span class="nm">${escapeHtml(it.name_ar)}</span><span class="pr">${it.price.toLocaleString('ar-EG')} ر.ي</span></div>
+          ${it.description_ar ? `<div class="ds">${escapeHtml(it.description_ar)}</div>` : ''}
+        </li>`).join('');
+        return `<section><h2>${escapeHtml(c.name_ar)}</h2><ul>${lis}</ul></section>`;
+      }).join('');
+      return res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>منيو ${brand.nameAr}</title>
+<style>body{font-family:system-ui,'Segoe UI',Arial,sans-serif;background:#111;color:#fff;margin:0;padding:0 16px 40px}
+hdr{display:block;padding:16px 0 10px;border-bottom:1px solid #333;text-align:center}
+hdr b{font-size:22px}
+section{margin-top:22px}h2{color:#c0392b;border-right:4px solid #c0392b;padding-right:10px;font-size:20px;margin:0 0 8px}
+ul{list-style:none;margin:0;padding:0}
+li.item{padding:10px 2px;border-bottom:1px solid #252525;display:block}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.nm{font-size:17px;font-weight:600}.pr{color:#ffb300;font-weight:700;white-space:nowrap}
+.ds{color:#bbb;font-size:13px;margin-top:4px}
+.foot{background:#161616;border-top:1px solid #333;text-align:center;padding:12px;font-size:14px;color:#eee;margin:20px -16px -40px}
+nav{display:block;text-align:center;padding:10px 0}
+nav a{color:#ffb300;font-size:15px}</style></head><body>
+<hdr><b>منيو ${brand.nameAr}</b></hdr>
+${rows}
+<nav><a href="/menu">النسخة التفاعلية (للأجهزة الحديثة)</a></nav>
+<div class="foot">للطلب من هذا الجهاز: اختر طاولتك في النسخة التفاعلية — أو اطلب مباشرة من الكاشير</div>
+</body></html>`);
+    } catch (e) {
+      console.error('menu-lite display:', e.message);
+      return res.status(500).send('تعذر تحميل المنيو');
+    }
+  }
   /* بلا رمز: نموذج كود بسيط يعيد نفس النتيجة */
   const entryForm = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -379,7 +439,7 @@ ${rows}
 app.use((req, res) => {
   const host = (req.headers.host || '').toLowerCase().split(':')[0];
   if (/^(192\.168|127\.|localhost|\[::1\])/.test(host)) return res.status(404).send('الصفحة غير موجودة');
-  res.redirect(302, `http://${detectLanIp()}/portal.html`);
+  res.redirect(302, `http://${detectLanIp()}${DISPLAY_MODE ? '/menu' : '/portal.html'}`);
 });
 
 app.use((err, req, res, next) => {
@@ -426,6 +486,7 @@ const mainServer = app.listen(PORT, '0.0.0.0', () => {
     }
   }
   console.log(`\n== ${brand.systemName} — ${brand.nameAr} — يعمل الآن ==`);
+  if (DISPLAY_MODE) console.log('** وضع منيو العرض مفعّل (DISPLAY_MODE=1): بدون طاولات/جلسات/أكواد');
   console.log(`محليًا: http://localhost:${PORT}`);
   console.log(`على الشبكة المحلية: ${baseUrl()}/admin/login.html`);
   console.log(`لوحة التحكم: /admin/login.html\n`);

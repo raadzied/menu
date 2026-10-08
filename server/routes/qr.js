@@ -37,7 +37,43 @@ router.get('/print', requireAuth, async (req, res) => {
     const qrWifi = wifiPayload ? await QRCode.toDataURL(wifiPayload, { width: 240, margin: 1 }) : '';
     cards.push({ table, url, qr, qrWifi });
   }
-  const rows = cards.map((c) => `
+  /* وضع العرض: لافتة الكاشير — QR شبكة واحد كبير + تعليمات الدخول */
+  let signCard = '';
+  if (process.env.DISPLAY_MODE === '1') {
+    const wifiPayload = buildWifiPayload(wifiSsid, process.env.WIFI_PASSWORD || '');
+    const qrWifiBig = wifiPayload ? await QRCode.toDataURL(wifiPayload, { width: 520, margin: 1 }) : '';
+    const menuUrl = `http://${detectLanIp()}/menu`;
+    const qrMenu = await QRCode.toDataURL(menuUrl, { width: 300, margin: 1 });
+    signCard = `
+      <div class="tcard" style="border:3px solid ${brand.colors.brandText}">
+        <div class="tcard__head">
+          <div class="tcard__num">📶</div>
+          <div class="tcard__title">
+            <div class="brand">${escapeHtml(brand.nameAr)} — لافتة الكاشير</div>
+            <div class="label">امسح رمز الشبكة للدخول على الواي فاي</div>
+          </div>
+        </div>
+        <div class="tcard__body">
+          <div class="step step--main">
+            <div class="step__n">١</div>
+            <div class="step__t">امسح رمز <b>الشبكة</b> بكاميرا هاتفك<br><b>${escapeHtml(wifiSsid) || '—'}</b></div>
+            ${qrWifiBig ? `<img class="step__img--big" src="${qrWifiBig}" alt="QR الشبكة">` : '<div class="step__t">اضبط WIFI_SSID في الإعدادات أولًا</div>'}
+          </div>
+          <div class="step">
+            <div class="step__n">٢</div>
+            <div class="step__t">بعد الاتصال افتح المنيو<br>أو انتظر صفحة الدخول</div>
+            <img class="step__img--sm" src="${qrMenu}" alt="QR المنيو">
+            <div class="side-net" style="font-weight:700">menu.lan</div>
+          </div>
+          <div class="step">
+            <div class="step__n">٣</div>
+            <div class="step__t">اختر طاولتك واطلب<br>ثم توجه للكاشير<br>برقم طلبك للدفع</div>
+          </div>
+        </div>
+        <div class="tcard__foot">تُطبع مرة واحدة وتوضع عند الكاونتر — لا حاجة لبطاقات الطاولات في وضع العرض</div>
+      </div>`;
+  }
+  const rows = (signCard ? signCard : '') + cards.map((c) => `
       <div class="tcard">
         <div class="tcard__head">
           <div class="tcard__num">${escapeHtml(c.table.table_number)}</div>

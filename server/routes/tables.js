@@ -15,6 +15,17 @@ function newCardCode() {
   return null;
 }
 
+/* وضع العرض: قائمة أرقام الطاولات للاختيار الذاتي — عامة، وبدون أي أسرار
+   (لا token ولا card_code أبدًا — أي تسريب هنا يكسر أمان النظام الكامل) */
+router.get('/public', (req, res) => {
+  if (process.env.DISPLAY_MODE !== '1') return res.status(404).json({ error: 'غير متاح' });
+  const rows = db.prepare(`
+    SELECT id, table_number, label, status FROM tables
+    WHERE status != 'disabled' ORDER BY table_number
+  `).all();
+  res.json(rows);
+});
+
 router.get('/', requireAuth, (req, res) => {
   const expired = db.prepare(`
     SELECT * FROM table_sessions WHERE status = 'active' AND expires_at < datetime('now')

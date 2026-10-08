@@ -45,6 +45,9 @@ const app = document.getElementById('app');
 const params = new URLSearchParams(window.location.search);
 const tableToken = params.get('t');
 const claimedSession = params.get('s');
+/* وضع العرض المؤقت: بدون توكن/جلسة — الزبون يختار طاولته بنفسه (يُحقن من السيرفر) */
+const DISPLAY_MODE = window.__DISPLAY_MODE__ === true;
+let displayTable = null;
 
 let sessionInfo = null;
 let categories = [];
@@ -101,7 +104,76 @@ function renderJoin() {
   input.focus();
 }
 
+/* ===== وضع العرض: اختيار الطاولة ذاتيًا ===== */
+function renderTablePicker(tables) {
+  app.innerHTML = `
+    <div class="state-screen">
+      <div class="state-screen__badge"></div>
+      <div class="state-screen__title">اختر رقم طاولتك</div>
+      <div class="state-screen__desc">اجلس على طاولتك ثم اضغط رقمها — وسيصل طلبك للكاشير باسمها</div>
+      <div id="tableGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:320px;margin-top:8px;"></div>
+    </div>
+  `;
+  const grid = document.getElementById('tableGrid');
+  tables.forEach((t) => {
+    const b = document.createElement('button');
+    b.className = 'add-btn';
+    b.style.maxWidth = 'none';
+    b.textContent = 'طاولة ' + t.table_number;
+    bindTap(b, () => {
+      displayTable = t;
+      sessionInfo = { table_number: t.table_number, display: true };
+      renderMenu();
+      const bar = document.querySelector('.session-bar');
+      if (bar) bar.style.display = 'none';
+      const heading = document.getElementById('categoryHeading');
+      if (heading && !heading.textContent) heading.textContent = '';
+    });
+    grid.appendChild(b);
+  });
+}
+
+function renderDisplayConfirmation(orderId) {
+  const tn = displayTable ? displayTable.table_number : '';
+  app.innerHTML = `
+    <div class="state-screen">
+      <div class="state-screen__badge"></div>
+      <div class="state-screen__title">طلبك رقم <span style="font-size:34px">${orderId}</span></div>
+      <div class="state-screen__desc">طاولة ${tn} — توجه للكاشير للتأكيد والدفع</div>
+      <button class="add-btn" id="newOrderBtn" style="max-width:320px">طلب جديد</button>
+    </div>
+  `;
+  bindTap(document.getElementById('newOrderBtn'), () => {
+    cart = {};
+    renderMenu();
+    const bar = document.querySelector('.session-bar');
+    if (bar) bar.style.display = 'none';
+  });
+}
+
+async function initDisplay() {
+  renderState('جاري التحضير', 'يتم الآن تجهيز قائمة الطعام...');
+  try {
+    const res = await fetch('/api/tables/public');
+    const tables = await res.json();
+    if (!res.ok || !Array.isArray(tables) || !tables.length) {
+      renderState('لا توجد طاولات متاحة', 'نادِ الكاشير من فضلك.');
+      return;
+    }
+    const catRes = await fetch('/api/menu/public');
+    categories = await catRes.json();
+    activeCatId = categories.length ? categories[0].id : null;
+    renderTablePicker(tables);
+  } catch (e) {
+    renderState('لا يوجد اتصال بالخادم', 'تأكد من اتصال جهازك بشبكة المطعم المحلية (واي فاي) وحاول مرة أخرى.');
+  }
+}
+
 async function init() {
+  if (DISPLAY_MODE) {
+    initDisplay();
+    return;
+  }
   if (!tableToken) {
     renderJoin();
     return;
@@ -558,11 +630,14 @@ async function submitOrder() {
   btn.textContent = 'جاري إرسال الطلب...';
   const items = cartArray().map((l) => ({ menu_item_id: l.item.id, quantity: l.qty }));
   const notes = document.getElementById('orderNotes').value.trim();
+  const payload = DISPLAY_MODE
+    ? { display: true, table_id: displayTable ? displayTable.id : null, items, notes: notes || undefined }
+    : { session_id: sessionInfo.session_id, table_token: tableToken, items, notes: notes || undefined };
   try {
     const res = await fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionInfo.session_id, table_token: tableToken, items, notes: notes || undefined }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -574,6 +649,10 @@ async function submitOrder() {
     cart = {};
     toggleDrawer(false);
     stopTimers();
+    if (DISPLAY_MODE) {
+      renderDisplayConfirmation(data.order_id);
+      return;
+    }
     renderState('تم استلام طلبك', 'وصل طلبك إلى الكاشير وسيتم تجهيزه قريبًا. شكرًا لزيارتك {{NAME_AR}}.', true);
   } catch (e) {
     alert('تعذر الاتصال بالخادم، تحقق من اتصال الشبكة المحلية');

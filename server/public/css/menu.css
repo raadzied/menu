@@ -24,7 +24,7 @@ body {
   background: rgba(0, 0, 0, 0);
 }
 
-/* ظپظٹط¯ظٹظˆ ط®ظ„ظپظٹط© ط§ظ„ظ†ط§ط± (loop) */
+/* فيديو خلفية النار (loop) */
 body {
   position: relative;
 }
@@ -41,9 +41,10 @@ body {
   background: radial-gradient(120% 90% at 50% 118%, #5C3A1E 0%, #3D2B1F 55%, #0f0d0b 100%);
 }
 
-/* طµظˆط±ط© ط§ظ„ط®ظ„ظپظٹط© ط®ظ„ظپ ظپظٹط¯ظٹظˆ ط§ظ„ظ†ط§ط± ظ…ط¨ط§ط´ط±ط© */
+/* صورة الخلفية خلف فيديو النار مباشرة */
 .fire-scene__back {
   position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
   background: url('/images/back.png') center / cover no-repeat;
   opacity: 0.15;
@@ -58,12 +59,9 @@ body {
   height: 100%;
   object-fit: cover;
   z-index: -1;
-  opacity: 40%;
-  /* 30% transparency */
-  mix-blend-mode: add;
-  loop: loop;
-  /* allows attribute for validation, JS sets actual looping */
-  autoplay: autoplay;
+  opacity: 0.4;
+  /* توهج إضافي: plus-lighter هو الاسم الصحيح لوضع المزج الجمعي */
+  mix-blend-mode: plus-lighter;
 }
 
 /* الفيديو يظهر على جميع الأجهزة بما فيها الجوال */
@@ -75,9 +73,10 @@ body {
   }
 }
 
-/* طھط¸ظ„ظٹظ„ ط®ظپظٹظپ ظ„ط¶ظ…ط§ظ† ظ‚ط±ط§ط،ط© ط§ظ„ظ†طµظˆطµ ظپظˆظ‚ ط§ظ„ظ†ط§ط± */
+/* تظليل خفيف لضمان قراءة النصوص فوق النار */
 .fire-scene__shade {
   position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
   background: linear-gradient(to bottom,
       rgba(16, 8, 3, 0.22) 0%,
@@ -209,7 +208,7 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* ظ…ظ†ط·ظ‚ط© ط§ظ„ط¹ط±ط¶: طµظ†ظپ ظˆط§ط­ط¯ ظƒط§ظ…ظ„ ط§ظ„ط´ط§ط´ط© ظپظٹ ظƒظ„ ظ…ط±ط© (ظٹظڈط³ط­ط¨ ط±ط£ط³ظٹظ‹ط§ ط¯ط§ط®ظ„ ظ†ظپط³ ط§ظ„ظ‚ط³ظ…) */
+/* منطقة العرض: صنف واحد كامل الشاشة في كل مرة */
 /* مسح الأصناف أفقيًا مثل الكاروسيل: كل صنف شريحة بعرض الشاشة — سحب يمين/شمال */
 /* منطقة الكاروسيل الدائري: تمتد بين عنوان القسم الأعلى وشريط التبويبات الأسفل */
 .category-view {
@@ -223,6 +222,7 @@ body {
 /* المسرح ثلاثي الأبعاد (perspective) — البطاقات تدور حول محور Y في حلقة أسطوانية */
 .carousel-stage {
   position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
   overflow: hidden;
   perspective: 1300px;
@@ -474,7 +474,7 @@ body {
   color: #ffffff;
 }
 
-/* ط²ط± ط§ظ„ط·ظ„ط¨ ط§ظ„ظ…ظˆط¬ظˆط¯ ظ…ط¨ط§ط´ط±ط© طھط­طھ ظƒظ„ طµظ†ظپطŒ ظپظٹ ظ…ظ†طھطµظپ ط§ظ„ط¹ط±ط¶ */
+/* زر الطلب الموجود مباشرة تحت كل صنف، في منتصف العرض */
 .item-slide__control {
   display: flex;
   justify-content: center;
@@ -514,7 +514,7 @@ body {
   z-index: 2;
 }
 
-/* ظ…ط¤ط´ط± ط§ظ„ظ‚ط³ظ… ط§ظ„ظ…ط®طھط§ط±: ط²ط± ظˆط§ط¶ط­ ط¨طھط¯ط±ط¬ ط¨ظ†ظٹ ط®ظپظٹظپ */
+/* مؤشر القسم المختار: زر واضح بتدرج بني خفيف */
 .bottom-nav__glass {
   position: absolute;
   top: 5px;
@@ -531,7 +531,7 @@ body {
   pointer-events: none;
 }
 
-/* ظ„ظ…ط¹ط© ط³ط§ط¦ظ„ط© ط®ظپظٹظپط© طھطھط­ط±ظƒ ط¯ط§ط®ظ„ ط§ظ„ظ…ط¤ط´ط± */
+/* لمعة سائلة خفيفة تتحرك داخل المؤشر */
 .bottom-nav__glass::before {
   content: '';
   position: absolute;
@@ -555,7 +555,7 @@ body {
   }
 }
 
-/* ظ†طµ ط£ظˆط¶ط­ ظ„ظ„ظ‚ط³ظ… ط§ظ„ظ…ط®طھط§ط± ظپظˆظ‚ ط§ظ„طھط¯ط±ط¬ ط§ظ„ط¨ظ†ظٹ */
+/* نص أوضح للقسم المختار فوق التدرج البني */
 .bottom-nav__item.active {
   color: #ffffff;
   font-weight: 700;
@@ -576,7 +576,7 @@ body {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
 }
 
-/* ط³ظ„ط© ط§ظ„ط·ظ„ط¨ ط§ظ„ط¹ط§ط¦ظ…ط© */
+/* سلة الطلب العائمة */
 .cart-fab {
   position: fixed;
   bottom: calc(var(--chrome-bottom) + env(safe-area-inset-bottom) + 20px);
@@ -634,6 +634,7 @@ body {
 
 .cart-drawer {
   position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
   z-index: 60;
   display: none;
@@ -645,6 +646,7 @@ body {
 
 .cart-drawer__backdrop {
   position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
 }

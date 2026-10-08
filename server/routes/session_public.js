@@ -68,7 +68,9 @@ function sessionPayload(table, session) {
 }
 
 function registerDevice(sessionId, req) {
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || '';
+  /* لا نثق بترويسة x-forwarded-for إطلاقًا: لا يوجد بروكسي موثوق في شبكة المطعم،
+     وقبولها يتيح للزبون تزوير IP (التلاعب بعدّاد الأجهزة وحماية معدل المحاولات) */
+  const ip = req.ip || '';
   if (ip) db.prepare('INSERT OR IGNORE INTO session_devices (session_id, ip) VALUES (?,?)').run(sessionId, ip);
 }
 
